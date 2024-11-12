@@ -30,12 +30,12 @@ install_requires = [x.strip() for x in all_reqs if "git+" not in x]
 
 setup(
     name="casbin_async_sqlalchemy_adapter",
-    author="wrapping-2000",
-    author_email="wenpengchen@njust.edu.cn",
+    author="Casbin",
+    author_email="admin@casbin.org",
     description="Asynchronous SQLAlchemy Adapter for PyCasbin",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/pycasbin/async-sqlalchemy-adapter",
+    url="https://github.com/officialpycasbin/async-sqlalchemy-adapter",
     keywords=[
         "asynccasbin",
         "SQLAlchemy",
