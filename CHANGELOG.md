@@ -1,5 +1,12 @@
 # Semantic Versioning Changelog
 
+# [1.7.0](https://github.com/officialpycasbin/async-sqlalchemy-adapter/compare/v1.6.0...v1.7.0) (2024-12-18)
+
+
+### Features
+
+* fix the README example ([#2](https://github.com/officialpycasbin/async-sqlalchemy-adapter/issues/2)) ([45d4b1b](https://github.com/officialpycasbin/async-sqlalchemy-adapter/commit/45d4b1b2f9f094ee34913b5f900d7cee5ada23dc))
+
 # [1.6.0](https://github.com/officialpycasbin/async-sqlalchemy-adapter/compare/v1.5.0...v1.6.0) (2024-11-12)
 
 
