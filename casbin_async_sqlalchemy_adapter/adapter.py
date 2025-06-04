@@ -13,7 +13,7 @@
 # limitations under the License.
 import warnings
 from contextlib import asynccontextmanager
-from typing import List
+from typing import List, Optional
 
 from casbin import persist
 from casbin.persist.adapters.asyncio import AsyncAdapter
@@ -63,7 +63,7 @@ class Filter:
 class Adapter(AsyncAdapter):
     """the interface for Casbin adapters."""
 
-    def __init__(self, engine, db_class=None, filtered=False, warning=True):
+    def __init__(self, engine, db_class=None, filtered=False, warning=True, db_session: Optional[AsyncSession] = None):
         if isinstance(engine, str):
             self._engine = create_async_engine(engine, future=True)
         else:
@@ -93,6 +93,7 @@ class Adapter(AsyncAdapter):
             Base.metadata = db_class.metadata
 
         self._db_class = db_class
+        self._external_session = db_session
         self.session_local = sessionmaker(
             self._engine, expire_on_commit=False, class_=AsyncSession
         )
@@ -102,13 +103,18 @@ class Adapter(AsyncAdapter):
     @asynccontextmanager
     async def _session_scope(self):
         """Provide an asynchronous transactional scope around a series of operations."""
-        async with self.session_local() as session:
-            try:
-                yield session
-                await session.commit()
-            except Exception as e:
-                await session.rollback()
-                raise e
+        if self._external_session is not None:
+            # Use external session without automatic commit/rollback
+            yield self._external_session
+        else:
+            # Use internal session with automatic commit/rollback
+            async with self.session_local() as session:
+                try:
+                    yield session
+                    await session.commit()
+                except Exception as e:
+                    await session.rollback()
+                    raise e
 
     async def create_table(self):
         """Creates default casbin rule table."""
@@ -143,12 +149,20 @@ class Adapter(AsyncAdapter):
                 )
         return stmt.order_by(self._db_class.id)
 
-    async def _save_policy_line(self, ptype, rule):
-        async with self._session_scope() as session:
+    async def _save_policy_line(self, ptype, rule, session=None):
+        if session is not None:
+            # Use provided session
             line = self._db_class(ptype=ptype)
             for i, v in enumerate(rule):
                 setattr(line, "v{}".format(i), v)
             session.add(line)
+        else:
+            # Use session scope (for backward compatibility)
+            async with self._session_scope() as session:
+                line = self._db_class(ptype=ptype)
+                for i, v in enumerate(rule):
+                    setattr(line, "v{}".format(i), v)
+                session.add(line)
 
     async def save_policy(self, model):
         """saves all policy rules to the storage."""
@@ -160,7 +174,7 @@ class Adapter(AsyncAdapter):
                     continue
                 for ptype, ast in model.model[sec].items():
                     for rule in ast.policy:
-                        await self._save_policy_line(ptype, rule)
+                        await self._save_policy_line(ptype, rule, session)
         return True
 
     async def add_policy(self, sec, ptype, rule):
@@ -169,8 +183,14 @@ class Adapter(AsyncAdapter):
 
     async def add_policies(self, sec, ptype, rules):
         """adds a policy rules to the storage."""
-        for rule in rules:
-            await self._save_policy_line(ptype, rule)
+        if self._external_session is not None:
+            # Use external session to add all rules in the same transaction
+            for rule in rules:
+                await self._save_policy_line(ptype, rule, self._external_session)
+        else:
+            # Use individual sessions for each rule (original behavior)
+            for rule in rules:
+                await self._save_policy_line(ptype, rule)
 
     async def remove_policy(self, sec, ptype, rule):
         """removes a policy rule from the storage."""
