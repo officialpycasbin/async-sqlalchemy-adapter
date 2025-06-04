@@ -1,5 +1,12 @@
 # Semantic Versioning Changelog
 
+# [1.8.0](https://github.com/officialpycasbin/async-sqlalchemy-adapter/compare/v1.7.0...v1.8.0) (2025-06-04)
+
+
+### Features
+
+* add external session support ([#5](https://github.com/officialpycasbin/async-sqlalchemy-adapter/issues/5)) ([d61dad9](https://github.com/officialpycasbin/async-sqlalchemy-adapter/commit/d61dad987dc1a2d5db2f9fe28bba4300f9cc7eb9))
+
 # [1.7.0](https://github.com/officialpycasbin/async-sqlalchemy-adapter/compare/v1.6.0...v1.7.0) (2024-12-18)
 
 
