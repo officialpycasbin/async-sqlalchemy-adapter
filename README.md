@@ -54,6 +54,85 @@ else:
 
 > Note that AsyncAdaper must be used for AynscEnforcer.
 
+## External Session Support
+
+The adapter supports using externally managed SQLAlchemy sessions. This feature is useful for:
+
+- Better transaction control in complex scenarios
+- Reducing database connections and communications
+- Supporting advanced database features like two-phase commits
+- Integrating with existing database session management
+
+### Basic Usage with External Session
+
+```python
+import casbin_async_sqlalchemy_adapter
+import casbin
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.orm import sessionmaker
+
+# Create your own database session
+engine = create_async_engine('sqlite+aiosqlite:///test.db')
+async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+# Create adapter with external session
+session = async_session()
+adapter = casbin_async_sqlalchemy_adapter.Adapter(
+    'sqlite+aiosqlite:///test.db',
+    db_session=session
+)
+
+e = casbin.AsyncEnforcer('path/to/model.conf', adapter)
+
+# Now you have full control over the session
+# The adapter will not auto-commit or auto-rollback when using external sessions
+```
+
+### Transaction Control Example
+
+```python
+# Example: Manual transaction control
+async with async_session() as session:
+    adapter = casbin_async_sqlalchemy_adapter.Adapter(
+        'sqlite+aiosqlite:///test.db',
+        db_session=session
+    )
+    
+    e = casbin.AsyncEnforcer('path/to/model.conf', adapter)
+    
+    # Add multiple policies in a single transaction
+    await e.add_policy("alice", "data1", "read")
+    await e.add_policy("bob", "data2", "write")
+    
+    # Commit or rollback as needed
+    await session.commit()
+```
+
+### Batch Operations Example
+
+```python
+# Example: Efficient batch operations
+async with async_session() as session:
+    adapter = casbin_async_sqlalchemy_adapter.Adapter(
+        'sqlite+aiosqlite:///test.db',
+        db_session=session
+    )
+    
+    e = casbin.AsyncEnforcer('path/to/model.conf', adapter)
+    
+    # Batch add multiple policies efficiently
+    policies = [
+        ["alice", "data1", "read"],
+        ["bob", "data2", "write"],
+        ["carol", "data3", "read"]
+    ]
+    await e.add_policies(policies)
+    
+    # Commit the transaction
+    await session.commit()
+```
+
+
 ### Getting Help
 
 - [PyCasbin](https://github.com/casbin/pycasbin)
