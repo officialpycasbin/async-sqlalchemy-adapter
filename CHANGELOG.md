@@ -1,5 +1,12 @@
 # Semantic Versioning Changelog
 
+# [1.9.0](https://github.com/officialpycasbin/async-sqlalchemy-adapter/compare/v1.8.0...v1.9.0) (2025-08-15)
+
+
+### Features
+
+* switch from casbin to pycasbin ([#6](https://github.com/officialpycasbin/async-sqlalchemy-adapter/issues/6)) ([7fe0649](https://github.com/officialpycasbin/async-sqlalchemy-adapter/commit/7fe06497c78c99d51f898b1cf56796f920c46528))
+
 # [1.8.0](https://github.com/officialpycasbin/async-sqlalchemy-adapter/compare/v1.7.0...v1.8.0) (2025-06-04)
 
 
