@@ -1,5 +1,12 @@
 # Semantic Versioning Changelog
 
+# [1.10.0](https://github.com/officialpycasbin/async-sqlalchemy-adapter/compare/v1.9.0...v1.10.0) (2025-08-20)
+
+
+### Features
+
+* fix README badges ([#7](https://github.com/officialpycasbin/async-sqlalchemy-adapter/issues/7)) ([229fbb3](https://github.com/officialpycasbin/async-sqlalchemy-adapter/commit/229fbb39bd4584d38cf9bd28ce573d18664ca243))
+
 # [1.9.0](https://github.com/officialpycasbin/async-sqlalchemy-adapter/compare/v1.8.0...v1.9.0) (2025-08-15)
 
 
