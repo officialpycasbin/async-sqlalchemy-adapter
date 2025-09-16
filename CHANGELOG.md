@@ -1,5 +1,13 @@
 # Semantic Versioning Changelog
 
+# [1.11.0](https://github.com/officialpycasbin/async-sqlalchemy-adapter/compare/v1.10.0...v1.11.0) (2025-09-16)
+
+
+### Features
+
+* enable checks in CI ([0d6d1c5](https://github.com/officialpycasbin/async-sqlalchemy-adapter/commit/0d6d1c5e1836efa336a74f7d1b987771a6e779a0))
+* fix error in CI script ([#11](https://github.com/officialpycasbin/async-sqlalchemy-adapter/issues/11)) ([e591591](https://github.com/officialpycasbin/async-sqlalchemy-adapter/commit/e591591e59277de7a855ef3dc4af115425183712))
+
 # [1.10.0](https://github.com/officialpycasbin/async-sqlalchemy-adapter/compare/v1.9.0...v1.10.0) (2025-08-20)
 
 
