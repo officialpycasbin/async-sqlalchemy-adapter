@@ -17,7 +17,7 @@ from typing import List, Optional
 
 from casbin import persist
 from casbin.persist.adapters.asyncio import AsyncAdapter
-from sqlalchemy import Column, Integer, String, delete
+from sqlalchemy import Column, Integer, String, delete, insert
 from sqlalchemy import or_
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.future import select
@@ -190,14 +190,20 @@ class Adapter(AsyncAdapter):
 
     async def add_policies(self, sec, ptype, rules):
         """adds a policy rules to the storage."""
-        if self._external_session is not None:
-            # Use external session to add all rules in the same transaction
-            for rule in rules:
-                await self._save_policy_line(ptype, rule, self._external_session)
-        else:
-            # Use individual sessions for each rule (original behavior)
-            for rule in rules:
-                await self._save_policy_line(ptype, rule)
+        if not rules:
+            return
+
+        # Build rows for executemany bulk insert
+        rows = []
+        for rule in rules:
+            row = {"ptype": ptype}
+            for i, v in enumerate(rule):
+                row[f"v{i}"] = v
+            rows.append(row)
+
+        async with self._session_scope() as session:
+            stmt = insert(self._db_class)
+            await session.execute(stmt, rows)
 
     async def remove_policy(self, sec, ptype, rule):
         """removes a policy rule from the storage."""
