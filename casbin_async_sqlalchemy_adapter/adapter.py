@@ -63,7 +63,14 @@ class Filter:
 class Adapter(AsyncAdapter):
     """the interface for Casbin adapters."""
 
-    def __init__(self, engine, db_class=None, filtered=False, warning=True, db_session: Optional[AsyncSession] = None):
+    def __init__(
+        self,
+        engine,
+        db_class=None,
+        filtered=False,
+        warning=True,
+        db_session: Optional[AsyncSession] = None,
+    ):
         if isinstance(engine, str):
             self._engine = create_async_engine(engine, future=True)
         else:
