@@ -1,5 +1,12 @@
 # Semantic Versioning Changelog
 
+# [1.12.0](https://github.com/officialpycasbin/async-sqlalchemy-adapter/compare/v1.11.0...v1.12.0) (2025-09-17)
+
+
+### Features
+
+* improve performance by doing bulk insert in add_policies() API ([#9](https://github.com/officialpycasbin/async-sqlalchemy-adapter/issues/9)) ([e7aa07f](https://github.com/officialpycasbin/async-sqlalchemy-adapter/commit/e7aa07f36dcc90a23740662a0e1bc74bc0fcb6d3))
+
 # [1.11.0](https://github.com/officialpycasbin/async-sqlalchemy-adapter/compare/v1.10.0...v1.11.0) (2025-09-16)
 
 
