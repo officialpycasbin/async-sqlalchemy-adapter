@@ -1,5 +1,13 @@
 # Semantic Versioning Changelog
 
+# [1.13.0](https://github.com/officialpycasbin/async-sqlalchemy-adapter/compare/v1.12.0...v1.13.0) (2025-09-17)
+
+
+### Features
+
+* fix code formatting errors and migrate metadata from setup.py to pyproject.toml ([#13](https://github.com/officialpycasbin/async-sqlalchemy-adapter/issues/13)) ([95204bf](https://github.com/officialpycasbin/async-sqlalchemy-adapter/commit/95204bfa0b70e8934b4f2cb55ab2e9c2924bd13d))
+* improve code format for black ([#12](https://github.com/officialpycasbin/async-sqlalchemy-adapter/issues/12)) ([8e2a827](https://github.com/officialpycasbin/async-sqlalchemy-adapter/commit/8e2a827741a36c9c3db38cb936668d4fead8d33b))
+
 # [1.12.0](https://github.com/officialpycasbin/async-sqlalchemy-adapter/compare/v1.11.0...v1.12.0) (2025-09-17)
 
 
