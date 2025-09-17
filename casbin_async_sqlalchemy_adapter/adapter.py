@@ -101,9 +101,7 @@ class Adapter(AsyncAdapter):
 
         self._db_class = db_class
         self._external_session = db_session
-        self.session_local = sessionmaker(
-            self._engine, expire_on_commit=False, class_=AsyncSession
-        )
+        self.session_local = sessionmaker(self._engine, expire_on_commit=False, class_=AsyncSession)
 
         self._filtered = filtered
 
@@ -151,9 +149,7 @@ class Adapter(AsyncAdapter):
     def filter_query(self, stmt, filter):
         for attr in ("ptype", "v0", "v1", "v2", "v3", "v4", "v5"):
             if len(getattr(filter, attr)) > 0:
-                stmt = stmt.where(
-                    getattr(self._db_class, attr).in_(getattr(filter, attr))
-                )
+                stmt = stmt.where(getattr(self._db_class, attr).in_(getattr(filter, attr)))
         return stmt.order_by(self._db_class.id)
 
     async def _save_policy_line(self, ptype, rule, session=None):
@@ -217,9 +213,7 @@ class Adapter(AsyncAdapter):
             stmt = delete(self._db_class).where(self._db_class.ptype == ptype)
             rules = zip(*rules)
             for i, rule in enumerate(rules):
-                stmt = stmt.where(
-                    or_(getattr(self._db_class, "v{}".format(i)) == v for v in rule)
-                )
+                stmt = stmt.where(or_(getattr(self._db_class, "v{}".format(i)) == v for v in rule))
             await session.execute(stmt)
 
     async def remove_filtered_policy(self, sec, ptype, field_index, *field_values):
@@ -241,9 +235,7 @@ class Adapter(AsyncAdapter):
 
         return True if r.rowcount > 0 else False
 
-    async def update_policy(
-        self, sec: str, ptype: str, old_rule: List[str], new_rule: List[str]
-    ) -> None:
+    async def update_policy(self, sec: str, ptype: str, old_rule: List[str], new_rule: List[str]) -> None:
         """
         Update the old_rule with the new_rule in the database (storage).
 
@@ -295,9 +287,7 @@ class Adapter(AsyncAdapter):
         for i in range(len(old_rules)):
             await self.update_policy(sec, ptype, old_rules[i], new_rules[i])
 
-    async def update_filtered_policies(
-        self, sec, ptype, new_rules: List[List[str]], field_index, *field_values
-    ) -> List[List[str]]:
+    async def update_filtered_policies(self, sec, ptype, new_rules: List[List[str]], field_index, *field_values) -> List[List[str]]:
         """update_filtered_policies updates all the policies on the basis of the filter."""
 
         filter = Filter()

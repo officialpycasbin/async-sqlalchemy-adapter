@@ -38,9 +38,7 @@ async def get_enforcer():
     adapter = Adapter(engine)
     await adapter.create_table()
 
-    async_session = async_sessionmaker(
-        engine, expire_on_commit=False, class_=AsyncSession
-    )
+    async_session = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
     async with async_session() as s:
         s.add(CasbinRule(ptype="p", v0="alice", v1="data1", v2="read"))
         s.add(CasbinRule(ptype="p", v0="bob", v1="data2", v2="write"))
@@ -73,9 +71,7 @@ class TestConfig(IsolatedAsyncioTestCase):
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
 
-        session = async_sessionmaker(
-            engine, expire_on_commit=False, class_=AsyncSession
-        )
+        session = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
         async with session() as s:
             s.add(CustomRule(not_exist="NotNone"))
             await s.commit()
@@ -140,9 +136,7 @@ class TestConfig(IsolatedAsyncioTestCase):
         await e.add_policies((("alice", "data5", "read"), ("alice", "data6", "read")))
         self.assertTrue(e.enforce("alice", "data5", "read"))
         self.assertTrue(e.enforce("alice", "data6", "read"))
-        await e.remove_policies(
-            (("alice", "data5", "read"), ("alice", "data6", "read"))
-        )
+        await e.remove_policies((("alice", "data5", "read"), ("alice", "data6", "read")))
         self.assertFalse(e.enforce("alice", "data5", "read"))
         self.assertFalse(e.enforce("alice", "data6", "read"))
 
@@ -185,9 +179,7 @@ class TestConfig(IsolatedAsyncioTestCase):
         self.assertEqual(repr(rule), '<CasbinRule None: "p, alice, data1, read">')
         engine = create_async_engine("sqlite+aiosqlite://", future=True)
 
-        session = async_sessionmaker(
-            engine, expire_on_commit=False, class_=AsyncSession
-        )
+        session = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
         s = session()
