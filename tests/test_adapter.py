@@ -404,25 +404,15 @@ class TestBulkInsert(IsolatedAsyncioTestCase):
         ]
         await adapter.add_policies("p", "p", rules)
 
-        async_session = async_sessionmaker(
-            engine, expire_on_commit=False, class_=AsyncSession
-        )
+        async_session = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
         async with async_session() as s:
             # count inserted rows
             from sqlalchemy import select, func
 
-            cnt = await s.execute(
-                select(func.count())
-                .select_from(CasbinRule)
-                .where(CasbinRule.ptype == "p")
-            )
+            cnt = await s.execute(select(func.count()).select_from(CasbinRule).where(CasbinRule.ptype == "p"))
             assert cnt.scalar_one() == len(rules)
 
-            rows = (
-                (await s.execute(select(CasbinRule).order_by(CasbinRule.id)))
-                .scalars()
-                .all()
-            )
+            rows = (await s.execute(select(CasbinRule).order_by(CasbinRule.id))).scalars().all()
             tuples = [(r.v0, r.v1, r.v2) for r in rows]
             for r in rules:
                 assert r in tuples
