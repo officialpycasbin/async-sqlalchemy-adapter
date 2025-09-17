@@ -51,6 +51,8 @@ jobs:
           VALIDATE_PYTHON_BLACK: true
           DEFAULT_BRANCH: master
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LINTER_RULES_PATH: /
+          PYTHON_BLACK_CONFIG_FILE: pyproject.toml
 
   coveralls:
     name: Indicate completion to coveralls.io

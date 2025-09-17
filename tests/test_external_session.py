@@ -46,9 +46,7 @@ class TestExternalSession(IsolatedAsyncioTestCase):
 
         try:
             # Create async engine
-            engine = create_async_engine(
-                f"sqlite+aiosqlite:///{db_file.name}", future=True
-            )
+            engine = create_async_engine(f"sqlite+aiosqlite:///{db_file.name}", future=True)
 
             # Create session factory
             async_session_factory = async_sessionmaker(engine, expire_on_commit=False)
@@ -79,9 +77,7 @@ class TestExternalSession(IsolatedAsyncioTestCase):
             # Verify permissions persist after commit with new session
             async with async_session_factory() as new_session:
                 new_adapter = Adapter(engine, db_session=new_session)
-                new_enforcer = casbin.AsyncEnforcer(
-                    get_fixture("rbac_model.conf"), new_adapter
-                )
+                new_enforcer = casbin.AsyncEnforcer(get_fixture("rbac_model.conf"), new_adapter)
                 await new_enforcer.load_policy()
 
                 self.assertTrue(new_enforcer.enforce("alice", "data1", "read"))
@@ -100,9 +96,7 @@ class TestExternalSession(IsolatedAsyncioTestCase):
 
         try:
             # Create async engine
-            engine = create_async_engine(
-                f"sqlite+aiosqlite:///{db_file.name}", future=True
-            )
+            engine = create_async_engine(f"sqlite+aiosqlite:///{db_file.name}", future=True)
 
             # Create session factory
             async_session_factory = async_sessionmaker(engine, expire_on_commit=False)
@@ -133,9 +127,7 @@ class TestExternalSession(IsolatedAsyncioTestCase):
             # Verify permissions do not persist after rollback with new session
             async with async_session_factory() as new_session:
                 new_adapter = Adapter(engine, db_session=new_session)
-                new_enforcer = casbin.AsyncEnforcer(
-                    get_fixture("rbac_model.conf"), new_adapter
-                )
+                new_enforcer = casbin.AsyncEnforcer(get_fixture("rbac_model.conf"), new_adapter)
                 await new_enforcer.load_policy()
 
                 self.assertFalse(new_enforcer.enforce("alice", "data1", "read"))
@@ -154,9 +146,7 @@ class TestExternalSession(IsolatedAsyncioTestCase):
 
         try:
             # Create async engine
-            engine = create_async_engine(
-                f"sqlite+aiosqlite:///{db_file.name}", future=True
-            )
+            engine = create_async_engine(f"sqlite+aiosqlite:///{db_file.name}", future=True)
 
             # Create session factory
             async_session_factory = async_sessionmaker(engine, expire_on_commit=False)
@@ -186,9 +176,7 @@ class TestExternalSession(IsolatedAsyncioTestCase):
             # Verify policies persist after commit with new session
             async with async_session_factory() as new_session:
                 new_adapter = Adapter(engine, db_session=new_session)
-                new_enforcer = casbin.AsyncEnforcer(
-                    get_fixture("rbac_model.conf"), new_adapter
-                )
+                new_enforcer = casbin.AsyncEnforcer(get_fixture("rbac_model.conf"), new_adapter)
                 await new_enforcer.load_policy()
 
                 self.assertTrue(new_enforcer.enforce("alice", "data1", "read"))
@@ -207,9 +195,7 @@ class TestExternalSession(IsolatedAsyncioTestCase):
 
         try:
             # Create async engine
-            engine = create_async_engine(
-                f"sqlite+aiosqlite:///{db_file.name}", future=True
-            )
+            engine = create_async_engine(f"sqlite+aiosqlite:///{db_file.name}", future=True)
 
             # Create adapter without external session (original way)
             adapter = Adapter(engine)
@@ -231,9 +217,7 @@ class TestExternalSession(IsolatedAsyncioTestCase):
 
             # Create new adapter to verify persistence
             new_adapter = Adapter(engine)
-            new_enforcer = casbin.AsyncEnforcer(
-                get_fixture("rbac_model.conf"), new_adapter
-            )
+            new_enforcer = casbin.AsyncEnforcer(get_fixture("rbac_model.conf"), new_adapter)
             await new_enforcer.load_policy()
 
             self.assertTrue(new_enforcer.enforce("alice", "data1", "read"))
