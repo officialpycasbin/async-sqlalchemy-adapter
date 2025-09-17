@@ -1,2 +1,45 @@
+[project]
+name = "casbin_async_sqlalchemy_adapter"
+version = "1.12.0"
+authors = [
+    {name = "Casbin", email = "admin@casbin.org"}
+]
+description = "Asynchronous SQLAlchemy Adapter for PyCasbin"
+readme = "README.md"
+keywords = [
+    "asynccasbin",
+    "SQLAlchemy",
+    "casbin-adapter",
+    "rbac",
+    "access control",
+    "abac",
+    "acl",
+    "permission"
+]
+dynamic = ["dependencies"]
+requires-python = ">=3.7"
+license = {text = "Apache-2.0"}
+classifiers = [
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent"
+]
+
+[project.urls]
+Home-page = "https://github.com/officialpycasbin/async-sqlalchemy-adapter"
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+exclude = ["tests"]
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+
 [tool.black]
 line-length = 150
