@@ -17,7 +17,7 @@ import unittest
 from unittest import IsolatedAsyncioTestCase
 
 import casbin
-from sqlalchemy import Column, Integer, String, select
+from sqlalchemy import Column, Integer, String, Boolean, select
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 
 from casbin_async_sqlalchemy_adapter import Adapter
@@ -31,11 +31,11 @@ def get_fixture(path):
     return os.path.abspath(dir_path + path)
 
 
-async def get_enforcer():
+async def get_enforcer(soft_delete=False):
     engine = create_async_engine("sqlite+aiosqlite://", future=True)
     # engine = create_async_engine('sqlite+aiosqlite:///' + os.path.split(os.path.realpath(__file__))[0] + '/test.db',
     # echo=True)
-    adapter = Adapter(engine)
+    adapter = Adapter(engine, soft_delete=True)
     await adapter.create_table()
 
     async_session = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
@@ -66,6 +66,7 @@ class TestConfig(IsolatedAsyncioTestCase):
             v4 = Column(String(255))
             v5 = Column(String(255))
             not_exist = Column(String(255))
+            is_deleted = Column(Boolean, default=False, nullable=False)
 
         engine = create_async_engine("sqlite+aiosqlite://", future=True)
         async with engine.begin() as conn:

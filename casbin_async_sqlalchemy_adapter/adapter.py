@@ -17,8 +17,8 @@ from typing import List, Optional
 
 from casbin import persist
 from casbin.persist.adapters.asyncio import AsyncAdapter
-from sqlalchemy import Column, Integer, String, delete, insert
-from sqlalchemy import or_
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, delete, insert, update
+from sqlalchemy import or_, not_, and_
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import declarative_base, sessionmaker
@@ -37,6 +37,7 @@ class CasbinRule(Base):
     v3 = Column(String(255))
     v4 = Column(String(255))
     v5 = Column(String(255))
+    is_deleted = Column(Boolean, default=False, nullable=False)
 
     def __str__(self):
         arr = [self.ptype]
@@ -67,6 +68,7 @@ class Adapter(AsyncAdapter):
         self,
         engine,
         db_class=None,
+        soft_delete=False,
         filtered=False,
         warning=True,
         db_session: Optional[AsyncSession] = None,
@@ -75,6 +77,8 @@ class Adapter(AsyncAdapter):
             self._engine = create_async_engine(engine, future=True)
         else:
             self._engine = engine
+
+        self.softdelete_attribute = False
 
         if db_class is None:
             db_class = CasbinRule
@@ -85,6 +89,14 @@ class Adapter(AsyncAdapter):
                     RuntimeWarning,
                 )
         else:
+            if soft_delete is not None and not isinstance(
+                soft_delete.type, Boolean
+            ):
+                msg = f"The type of db_class_softdelete_attribute needs to be {str(Boolean)!r}. "
+                msg += f"An attribute of type {str(type(soft_delete.type))!r} was given."
+                raise ValueError(msg)
+            # Softdelete is only supported when using custom class
+            self.softdelete_attribute = soft_delete
             for attr in (
                 "id",
                 "ptype",
@@ -130,6 +142,8 @@ class Adapter(AsyncAdapter):
         """loads all policy rules from the storage."""
         async with self._session_scope() as session:
             lines = await session.execute(select(self._db_class))
+            if self.softdelete_attribute:
+                lines = await session.execute(select(self._db_class).where((self._db_class.is_deleted == False)))
             for line in lines.scalars():
                 persist.load_policy_line(str(line), model)
 
@@ -137,10 +151,11 @@ class Adapter(AsyncAdapter):
         return self._filtered
 
     async def load_filtered_policy(self, model, filter) -> None:
-        """loads all policy rules from the storage."""
         async with self._session_scope() as session:
             stmt = select(self._db_class)
             stmt = self.filter_query(stmt, filter)
+            if self.softdelete_attribute:
+                stmt = stmt.where((self._db_class.is_deleted == False))
             result = await session.execute(stmt)
             for line in result.scalars():
                 persist.load_policy_line(str(line), model)
@@ -169,15 +184,44 @@ class Adapter(AsyncAdapter):
 
     async def save_policy(self, model):
         """saves all policy rules to the storage."""
+        if self.softdelete_attribute == None:
+            async with self._session_scope() as session:
+                stmt = delete(self._db_class)
+                await session.execute(stmt)
+                for sec in ["p", "g"]:
+                    if sec not in model.model.keys():
+                        continue
+                    for ptype, ast in model.model[sec].items():
+                        for rule in ast.policy:
+                            await self._save_policy_line(ptype, rule, session)
+            return True
+        
         async with self._session_scope() as session:
-            stmt = delete(self._db_class)
-            await session.execute(stmt)
+            stmt = select(self._db_class).where(not_(self._db_class.is_deleted))
+            result = await session.execute(stmt)
+            db_rules = result.scalars().all()
+            db_rule_set = {str(rule) for rule in db_rules}
+
+            model_rules_to_add = []
+            model_rule_set = set()
             for sec in ["p", "g"]:
                 if sec not in model.model.keys():
                     continue
                 for ptype, ast in model.model[sec].items():
                     for rule in ast.policy:
-                        await self._save_policy_line(ptype, rule, session)
+                        rule_str = ", ".join([ptype] + list(rule))
+                        model_rule_set.add(rule_str)
+                        if rule_str not in db_rule_set:
+                            model_rules_to_add.append((ptype, rule))
+
+            for ptype, rule in model_rules_to_add:
+                await self._save_policy_line(ptype, rule, session)
+
+            for db_rule in db_rules:
+                if str(db_rule) not in model_rule_set:
+                    db_rule.is_deleted = True
+                    session.add(db_rule)
+
         return True
 
     async def add_policy(self, sec, ptype, rule):
@@ -185,7 +229,6 @@ class Adapter(AsyncAdapter):
         await self._save_policy_line(ptype, rule)
 
     async def add_policies(self, sec, ptype, rules):
-        """adds a policy rules to the storage."""
         if not rules:
             return
 
@@ -202,9 +245,11 @@ class Adapter(AsyncAdapter):
             await session.execute(stmt, rows)
 
     async def remove_policy(self, sec, ptype, rule):
-        """removes a policy rule from the storage."""
         async with self._session_scope() as session:
-            stmt = delete(self._db_class).where(self._db_class.ptype == ptype)
+            if self.softdelete_attribute:
+                stmt = update(self._db_class).where(self._db_class.ptype == ptype).value(is_deleted=True)
+            else:
+                stmt = delete(self._db_class).where(self._db_class.ptype == ptype)
             for i, v in enumerate(rule):
                 stmt = stmt.where(getattr(self._db_class, "v{}".format(i)) == v)
             r = await session.execute(stmt)
@@ -212,22 +257,40 @@ class Adapter(AsyncAdapter):
         return True if r.rowcount > 0 else False
 
     async def remove_policies(self, sec, ptype, rules):
-        """remove policy rules from the storage."""
         if not rules:
             return
         async with self._session_scope() as session:
-            stmt = delete(self._db_class).where(self._db_class.ptype == ptype)
-            rules = zip(*rules)
-            for i, rule in enumerate(rules):
-                stmt = stmt.where(or_(getattr(self._db_class, "v{}".format(i)) == v for v in rule))
-            await session.execute(stmt)
+            conditions = []
+            for rule in rules:
+                rule_conditions = [
+                    getattr(self._db_class, f"v{i}") == v for i, v in enumerate(rule)
+                ]
+                conditions.append(and_(*rule_conditions))
+
+            if self.softdelete_attribute:
+                stmt = update(self._db_class).where(
+                    self._db_class.ptype == ptype,
+                    self._db_class.is_deleted == False,
+                    or_(*conditions)
+                ).values(is_deleted=True)
+            else:
+                stmt = delete(self._db_class).where(
+                    self._db_class.ptype == ptype,
+                    or_(*conditions)
+                )
+            
+            result = await session.execute(stmt)
+            return result.rowcount > 0
 
     async def remove_filtered_policy(self, sec, ptype, field_index, *field_values):
-        """removes policy rules that match the filter from the storage.
-        This is part of the Auto-Save feature.
-        """
         async with self._session_scope() as session:
-            stmt = delete(self._db_class).where(self._db_class.ptype == ptype)
+            if self.softdelete_attribute:
+                stmt = update(self._db_class) \
+                    .where(self._db_class.ptype == ptype \
+                            and self._db_class.is_deleted == False)\
+                    .value(is_deleted=True)
+            else:
+                stmt = delete(self._db_class).where(self._db_class.ptype == ptype)
 
             if not (0 <= field_index <= 5):
                 return False
@@ -238,8 +301,7 @@ class Adapter(AsyncAdapter):
                     v_value = getattr(self._db_class, "v{}".format(field_index + i))
                     stmt = stmt.where(v_value == v)
             r = await session.execute(stmt)
-
-        return True if r.rowcount > 0 else False
+            return r.rowcount > 0
 
     async def update_policy(self, sec: str, ptype: str, old_rule: List[str], new_rule: List[str]) -> None:
         """
