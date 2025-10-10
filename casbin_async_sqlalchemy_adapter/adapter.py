@@ -89,9 +89,7 @@ class Adapter(AsyncAdapter):
                     RuntimeWarning,
                 )
         else:
-            if soft_delete is not None and not isinstance(
-                soft_delete.type, Boolean
-            ):
+            if soft_delete is not None and not isinstance(soft_delete.type, Boolean):
                 msg = f"The type of db_class_softdelete_attribute needs to be {str(Boolean)!r}. "
                 msg += f"An attribute of type {str(type(soft_delete.type))!r} was given."
                 raise ValueError(msg)
@@ -195,7 +193,7 @@ class Adapter(AsyncAdapter):
                         for rule in ast.policy:
                             await self._save_policy_line(ptype, rule, session)
             return True
-        
+
         async with self._session_scope() as session:
             stmt = select(self._db_class).where(not_(self._db_class.is_deleted))
             result = await session.execute(stmt)
@@ -262,33 +260,25 @@ class Adapter(AsyncAdapter):
         async with self._session_scope() as session:
             conditions = []
             for rule in rules:
-                rule_conditions = [
-                    getattr(self._db_class, f"v{i}") == v for i, v in enumerate(rule)
-                ]
+                rule_conditions = [getattr(self._db_class, f"v{i}") == v for i, v in enumerate(rule)]
                 conditions.append(and_(*rule_conditions))
 
             if self.softdelete_attribute:
-                stmt = update(self._db_class).where(
-                    self._db_class.ptype == ptype,
-                    self._db_class.is_deleted == False,
-                    or_(*conditions)
-                ).values(is_deleted=True)
-            else:
-                stmt = delete(self._db_class).where(
-                    self._db_class.ptype == ptype,
-                    or_(*conditions)
+                stmt = (
+                    update(self._db_class)
+                    .where(self._db_class.ptype == ptype, self._db_class.is_deleted == False, or_(*conditions))
+                    .values(is_deleted=True)
                 )
-            
+            else:
+                stmt = delete(self._db_class).where(self._db_class.ptype == ptype, or_(*conditions))
+
             result = await session.execute(stmt)
             return result.rowcount > 0
 
     async def remove_filtered_policy(self, sec, ptype, field_index, *field_values):
         async with self._session_scope() as session:
             if self.softdelete_attribute:
-                stmt = update(self._db_class) \
-                    .where(self._db_class.ptype == ptype \
-                            and self._db_class.is_deleted == False)\
-                    .value(is_deleted=True)
+                stmt = update(self._db_class).where(self._db_class.ptype == ptype and self._db_class.is_deleted == False).value(is_deleted=True)
             else:
                 stmt = delete(self._db_class).where(self._db_class.ptype == ptype)
 
