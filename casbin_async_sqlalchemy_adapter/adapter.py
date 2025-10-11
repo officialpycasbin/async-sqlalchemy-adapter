@@ -150,6 +150,7 @@ class Adapter(AsyncAdapter):
         return self._filtered
 
     async def load_filtered_policy(self, model, filter) -> None:
+        """loads all policy rules from the storage."""
         async with self._session_scope() as session:
             stmt = select(self._db_class)
             stmt = self.filter_query(stmt, filter)
