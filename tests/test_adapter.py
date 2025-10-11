@@ -31,11 +31,11 @@ def get_fixture(path):
     return os.path.abspath(dir_path + path)
 
 
-async def get_enforcer(soft_delete=False):
+async def get_enforcer():
     engine = create_async_engine("sqlite+aiosqlite://", future=True)
     # engine = create_async_engine('sqlite+aiosqlite:///' + os.path.split(os.path.realpath(__file__))[0] + '/test.db',
     # echo=True)
-    adapter = Adapter(engine, soft_delete=True)
+    adapter = Adapter(engine)
     await adapter.create_table()
 
     async_session = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
@@ -56,6 +56,7 @@ class TestConfig(IsolatedAsyncioTestCase):
     async def test_custom_db_class(self):
         class CustomRule(Base):
             __tablename__ = "casbin_rule2"
+            __table_args__ = {"extend_existing": True}
 
             id = Column(Integer, primary_key=True)
             ptype = Column(String(255))

@@ -131,7 +131,24 @@ async with async_session() as session:
     # Commit the transaction
     await session.commit()
 ```
+## Soft Delete
 
+Soft Delete for casbin rules is supported, only when using a custom casbin rule model.
+The Soft Delete mechanism is enabled by passing the attribute of the flag indicating whether
+a rule is deleted to `soft_delete`.
+That attribute needs to be of type `sqlalchemy.Boolean`.
+
+```python
+adapter = Adapter(
+    engine,
+    db_class=MyCustomCasbinRuleModel,
+    soft_delete=MyCustomCasbinRuleModel.is_deleted
+)
+```
+
+Please be aware that this adapter only sets a flag like `is_deleted` to `True`.
+The provided model needs to handle the update of fields like `deleted_by`, `deleted_at`, etc.
+An example for this is given in [softdelete.py](https://github.com/pycasbin/sqlalchemy-adapter/blob/master/examples/softdelete.py).
 
 ### Getting Help
 
