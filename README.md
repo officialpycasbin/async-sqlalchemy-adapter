@@ -54,6 +54,60 @@ else:
 
 > Note that AsyncAdaper must be used for AynscEnforcer.
 
+## Soft Deletion Support
+
+The adapter supports soft deletion of policies. When enabled, instead of physically deleting policy records from the database, they are marked as deleted using a boolean flag. This preserves the data history and allows for auditing.
+
+### Usage
+
+To use soft deletion, you need to:
+
+1. Define a custom database model with a boolean `is_deleted` column
+2. Pass the column attribute to the adapter when initializing
+
+```python
+import casbin_async_sqlalchemy_adapter
+import casbin
+from sqlalchemy import Column, Integer, String, Boolean
+from casbin_async_sqlalchemy_adapter import Base
+
+# Define your custom model with soft delete support
+class CasbinRuleSoftDelete(Base):
+    __tablename__ = "casbin_rule"
+    
+    id = Column(Integer, primary_key=True)
+    ptype = Column(String(255))
+    v0 = Column(String(255))
+    v1 = Column(String(255))
+    v2 = Column(String(255))
+    v3 = Column(String(255))
+    v4 = Column(String(255))
+    v5 = Column(String(255))
+    
+    # Add the soft delete column
+    is_deleted = Column(Boolean, default=False, index=True, nullable=False)
+
+# Create adapter with soft delete support
+adapter = casbin_async_sqlalchemy_adapter.Adapter(
+    'sqlite+aiosqlite:///test.db',
+    db_class=CasbinRuleSoftDelete,
+    db_class_softdelete_attribute=CasbinRuleSoftDelete.is_deleted
+)
+
+e = casbin.AsyncEnforcer('path/to/model.conf', adapter)
+
+# Now when you remove policies, they will be soft-deleted
+await e.remove_policy("alice", "data1", "read")
+# The record remains in the database with is_deleted=True
+```
+
+**Key Features:**
+- Records are marked as deleted instead of being removed from the database
+- All queries automatically filter out soft-deleted records
+- The soft delete column must be of type `Boolean`
+- Soft deletion only works with custom database classes (not the default `CasbinRule`)
+- Full backward compatibility - works as before when soft delete is not enabled
+
 ## External Session Support
 
 The adapter supports using externally managed SQLAlchemy sessions. This feature is useful for:
