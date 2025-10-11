@@ -292,7 +292,9 @@ class Adapter(AsyncAdapter):
             return result.rowcount > 0
 
     async def remove_filtered_policy(self, sec, ptype, field_index, *field_values):
-        """removes policy rules that match the filter from the storage."""
+        """removes policy rules that match the filter from the storage.
+        This is part of the Auto-Save feature.
+        """
         async with self._session_scope() as session:
             if self.softdelete_attribute:
                 soft_delete_column = self.softdelete_attribute
