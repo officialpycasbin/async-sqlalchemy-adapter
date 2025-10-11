@@ -17,7 +17,7 @@ import unittest
 from unittest import IsolatedAsyncioTestCase
 
 import casbin
-from sqlalchemy import Column, Integer, String, select
+from sqlalchemy import Column, Integer, String, Boolean, select
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 
 from casbin_async_sqlalchemy_adapter import Adapter
@@ -56,6 +56,7 @@ class TestConfig(IsolatedAsyncioTestCase):
     async def test_custom_db_class(self):
         class CustomRule(Base):
             __tablename__ = "casbin_rule2"
+            __table_args__ = {"extend_existing": True}
 
             id = Column(Integer, primary_key=True)
             ptype = Column(String(255))
@@ -66,6 +67,7 @@ class TestConfig(IsolatedAsyncioTestCase):
             v4 = Column(String(255))
             v5 = Column(String(255))
             not_exist = Column(String(255))
+            is_deleted = Column(Boolean, default=False, nullable=False)
 
         engine = create_async_engine("sqlite+aiosqlite://", future=True)
         async with engine.begin() as conn:
