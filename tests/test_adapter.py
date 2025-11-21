@@ -14,6 +14,7 @@
 
 import os
 import unittest
+import warnings
 from unittest import IsolatedAsyncioTestCase
 
 import casbin
@@ -425,7 +426,6 @@ class TestWarningParameter(IsolatedAsyncioTestCase):
         """Test that warning is shown by default when using default CasbinRule"""
         engine = create_async_engine("sqlite+aiosqlite://", future=True)
         
-        import warnings
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             adapter = Adapter(engine)
@@ -440,7 +440,6 @@ class TestWarningParameter(IsolatedAsyncioTestCase):
         """Test that warning=False suppresses the warning"""
         engine = create_async_engine("sqlite+aiosqlite://", future=True)
         
-        import warnings
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             adapter = Adapter(engine, warning=False)
@@ -452,7 +451,6 @@ class TestWarningParameter(IsolatedAsyncioTestCase):
         """Test that passing db_class suppresses the warning"""
         engine = create_async_engine("sqlite+aiosqlite://", future=True)
         
-        import warnings
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             adapter = Adapter(engine, db_class=CasbinRule)
@@ -464,7 +462,6 @@ class TestWarningParameter(IsolatedAsyncioTestCase):
         """Test that passing both db_class and warning=False works"""
         engine = create_async_engine("sqlite+aiosqlite://", future=True)
         
-        import warnings
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             adapter = Adapter(engine, db_class=CasbinRule, warning=False)
@@ -487,7 +484,6 @@ class TestWarningParameter(IsolatedAsyncioTestCase):
 
         engine = create_async_engine("sqlite+aiosqlite://", future=True)
         
-        import warnings
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             # Even with warning=True, custom db_class should not warn
