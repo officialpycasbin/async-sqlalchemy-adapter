@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import warnings
 from contextlib import asynccontextmanager
 from typing import List, Optional
 
@@ -68,7 +67,6 @@ class Adapter(AsyncAdapter):
         engine,
         db_class=None,
         filtered=False,
-        warning=True,
         db_session: Optional[AsyncSession] = None,
     ):
         if isinstance(engine, str):
@@ -78,12 +76,6 @@ class Adapter(AsyncAdapter):
 
         if db_class is None:
             db_class = CasbinRule
-            if warning:
-                warnings.warn(
-                    "Using default CasbinRule table, please note the use of the 'Adapter().create_table()' method"
-                    " to create the table, and ignore this warning if you are using a custom CasbinRule table.",
-                    RuntimeWarning,
-                )
         else:
             for attr in (
                 "id",
