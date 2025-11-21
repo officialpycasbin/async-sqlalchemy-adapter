@@ -1,5 +1,12 @@
 # Semantic Versioning Changelog
 
+# [1.14.0](https://github.com/officialpycasbin/async-sqlalchemy-adapter/compare/v1.13.0...v1.14.0) (2025-11-21)
+
+
+### Features
+
+* remove warning parameter and suppression code from Adapter ([#19](https://github.com/officialpycasbin/async-sqlalchemy-adapter/issues/19)) ([456a940](https://github.com/officialpycasbin/async-sqlalchemy-adapter/commit/456a940cba34114ab21c0d23857c8659f36ba3af))
+
 # [1.13.0](https://github.com/officialpycasbin/async-sqlalchemy-adapter/compare/v1.12.0...v1.13.0) (2025-09-17)
 
 
