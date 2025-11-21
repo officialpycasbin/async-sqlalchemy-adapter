@@ -418,5 +418,84 @@ class TestBulkInsert(IsolatedAsyncioTestCase):
                 assert r in tuples
 
 
+class TestWarningParameter(IsolatedAsyncioTestCase):
+    """Test warning suppression functionality"""
+
+    async def test_default_warning_shown(self):
+        """Test that warning is shown by default when using default CasbinRule"""
+        engine = create_async_engine("sqlite+aiosqlite://", future=True)
+        
+        import warnings
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            adapter = Adapter(engine)
+            
+            # Should have exactly one warning
+            self.assertEqual(len(w), 1)
+            self.assertTrue(issubclass(w[0].category, RuntimeWarning))
+            self.assertIn("Using default CasbinRule table", str(w[0].message))
+            self.assertIn("warning=False", str(w[0].message))
+
+    async def test_warning_suppressed_with_parameter(self):
+        """Test that warning=False suppresses the warning"""
+        engine = create_async_engine("sqlite+aiosqlite://", future=True)
+        
+        import warnings
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            adapter = Adapter(engine, warning=False)
+            
+            # Should have no warnings
+            self.assertEqual(len(w), 0)
+
+    async def test_warning_suppressed_with_custom_db_class(self):
+        """Test that passing db_class suppresses the warning"""
+        engine = create_async_engine("sqlite+aiosqlite://", future=True)
+        
+        import warnings
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            adapter = Adapter(engine, db_class=CasbinRule)
+            
+            # Should have no warnings
+            self.assertEqual(len(w), 0)
+
+    async def test_warning_suppressed_with_both_parameters(self):
+        """Test that passing both db_class and warning=False works"""
+        engine = create_async_engine("sqlite+aiosqlite://", future=True)
+        
+        import warnings
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            adapter = Adapter(engine, db_class=CasbinRule, warning=False)
+            
+            # Should have no warnings
+            self.assertEqual(len(w), 0)
+
+    async def test_custom_db_class_no_warning(self):
+        """Test that custom db_class doesn't show warning regardless of warning parameter"""
+        class CustomRule(Base):
+            __tablename__ = "custom_casbin_rule"
+            id = Column(Integer, primary_key=True)
+            ptype = Column(String(255))
+            v0 = Column(String(255))
+            v1 = Column(String(255))
+            v2 = Column(String(255))
+            v3 = Column(String(255))
+            v4 = Column(String(255))
+            v5 = Column(String(255))
+
+        engine = create_async_engine("sqlite+aiosqlite://", future=True)
+        
+        import warnings
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            # Even with warning=True, custom db_class should not warn
+            adapter = Adapter(engine, db_class=CustomRule, warning=True)
+            
+            # Should have no warnings
+            self.assertEqual(len(w), 0)
+
+
 if __name__ == "__main__":
     unittest.main()

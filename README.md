@@ -54,6 +54,28 @@ else:
 
 > Note that AsyncAdaper must be used for AynscEnforcer.
 
+### Suppressing the Default Table Warning
+
+By default, when using the default `CasbinRule` table, the adapter will show a warning to remind you to call `create_table()`. If you want to suppress this warning, you have two options:
+
+**Option 1: Use the `warning` parameter**
+```python
+adapter = casbin_async_sqlalchemy_adapter.Adapter(
+    'sqlite+aiosqlite:///test.db',
+    warning=False  # Suppress the warning
+)
+```
+
+**Option 2: Explicitly pass the `db_class` parameter**
+```python
+from casbin_async_sqlalchemy_adapter import CasbinRule
+
+adapter = casbin_async_sqlalchemy_adapter.Adapter(
+    'sqlite+aiosqlite:///test.db',
+    db_class=CasbinRule  # Explicitly use default class
+)
+```
+
 ## External Session Support
 
 The adapter supports using externally managed SQLAlchemy sessions. This feature is useful for:

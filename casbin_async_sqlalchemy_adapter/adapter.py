@@ -81,7 +81,8 @@ class Adapter(AsyncAdapter):
             if warning:
                 warnings.warn(
                     "Using default CasbinRule table, please note the use of the 'Adapter().create_table()' method"
-                    " to create the table, and ignore this warning if you are using a custom CasbinRule table.",
+                    " to create the table. To suppress this warning, pass 'warning=False' to the Adapter constructor,"
+                    " or pass a custom 'db_class' parameter.",
                     RuntimeWarning,
                 )
         else:
