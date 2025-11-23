@@ -1,5 +1,12 @@
 # Semantic Versioning Changelog
 
+# [1.15.0](https://github.com/officialpycasbin/async-sqlalchemy-adapter/compare/v1.14.0...v1.15.0) (2025-11-23)
+
+
+### Features
+
+* add soft deletion support ([#20](https://github.com/officialpycasbin/async-sqlalchemy-adapter/issues/20)) ([da6a819](https://github.com/officialpycasbin/async-sqlalchemy-adapter/commit/da6a819e60c6b4b5430dcd8aa3137afee64f3e6e))
+
 # [1.14.0](https://github.com/officialpycasbin/async-sqlalchemy-adapter/compare/v1.13.0...v1.14.0) (2025-11-21)
 
 
