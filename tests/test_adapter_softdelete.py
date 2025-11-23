@@ -93,6 +93,7 @@ class TestConfigSoftDelete(IsolatedAsyncioTestCase):
 
     async def test_custom_db_class(self):
         """Test that custom database class with softdelete works."""
+
         class CustomRule(Base):
             __tablename__ = "casbin_rule3"
             __table_args__ = {"extend_existing": True}
@@ -125,7 +126,7 @@ class TestConfigSoftDelete(IsolatedAsyncioTestCase):
         """Test that softdelete flag is set correctly when removing policies."""
         e = await self.get_enforcer()
         session_maker = e.adapter.session_local
-        
+
         async with session_maker() as session:
             # Verify rule does not exist initially
             self.assertFalse(e.enforce("alice", "data5", "read"))
@@ -135,7 +136,7 @@ class TestConfigSoftDelete(IsolatedAsyncioTestCase):
         # Add new permission
         await e.add_permission_for_user("alice", "data5", "read")
         self.assertTrue(e.enforce("alice", "data5", "read"))
-        
+
         async with session_maker() as session:
             rule = await query_for_rule(session, e.adapter, "p", "alice", "data5", "read")
             self.assertIsNotNone(rule)
@@ -144,7 +145,7 @@ class TestConfigSoftDelete(IsolatedAsyncioTestCase):
         # Delete permission - should soft delete
         await e.delete_permission_for_user("alice", "data5", "read")
         self.assertFalse(e.enforce("alice", "data5", "read"))
-        
+
         async with session_maker() as session:
             rule = await query_for_rule(session, e.adapter, "p", "alice", "data5", "read")
             self.assertIsNotNone(rule)
@@ -174,25 +175,26 @@ class TestConfigSoftDelete(IsolatedAsyncioTestCase):
             # Check deleted rules are marked as deleted
             rule1 = await query_for_rule(session, e.adapter, "p", "alice", "data1", "read")
             self.assertTrue(rule1.is_deleted)
-            
+
             rule2 = await query_for_rule(session, e.adapter, "p", "bob", "data2", "write")
             self.assertTrue(rule2.is_deleted)
-            
+
             # Non-existent rule should not be in DB
             rule3 = await query_for_rule(session, e.adapter, "p", "bob", "data100", "read")
             self.assertIsNone(rule3)
-            
+
             # New rules should not be deleted
             rule4 = await query_for_rule(session, e.adapter, "p", "alice", "data100", "read")
             self.assertIsNotNone(rule4)
             self.assertFalse(rule4.is_deleted)
-            
+
             rule5 = await query_for_rule(session, e.adapter, "p", "bob", "data100", "write")
             self.assertIsNotNone(rule5)
             self.assertFalse(rule5.is_deleted)
 
     async def test_softdelete_type_validation(self):
         """Test that non-Boolean softdelete attribute raises ValueError."""
+
         class InvalidRule(Base):
             __tablename__ = "invalid_rule"
 
@@ -207,10 +209,10 @@ class TestConfigSoftDelete(IsolatedAsyncioTestCase):
             is_deleted = Column(String(255))  # Wrong type!
 
         engine = create_async_engine("sqlite+aiosqlite://", future=True)
-        
+
         with self.assertRaises(ValueError) as context:
             Adapter(engine, InvalidRule, InvalidRule.is_deleted)
-        
+
         self.assertIn("Boolean", str(context.exception))
 
     async def test_remove_policies_with_softdelete(self):
@@ -219,11 +221,7 @@ class TestConfigSoftDelete(IsolatedAsyncioTestCase):
         session_maker = e.adapter.session_local
 
         # Add multiple policies
-        await e.add_policies([
-            ["alice", "data10", "read"],
-            ["bob", "data10", "write"],
-            ["carol", "data10", "read"]
-        ])
+        await e.add_policies([["alice", "data10", "read"], ["bob", "data10", "write"], ["carol", "data10", "read"]])
 
         # Verify they exist
         self.assertTrue(e.enforce("alice", "data10", "read"))
@@ -231,10 +229,7 @@ class TestConfigSoftDelete(IsolatedAsyncioTestCase):
         self.assertTrue(e.enforce("carol", "data10", "read"))
 
         # Remove multiple policies
-        await e.remove_policies([
-            ["alice", "data10", "read"],
-            ["bob", "data10", "write"]
-        ])
+        await e.remove_policies([["alice", "data10", "read"], ["bob", "data10", "write"]])
 
         # Verify they are soft-deleted
         self.assertFalse(e.enforce("alice", "data10", "read"))
@@ -245,11 +240,11 @@ class TestConfigSoftDelete(IsolatedAsyncioTestCase):
             rule1 = await query_for_rule(session, e.adapter, "p", "alice", "data10", "read")
             self.assertIsNotNone(rule1)
             self.assertTrue(rule1.is_deleted)
-            
+
             rule2 = await query_for_rule(session, e.adapter, "p", "bob", "data10", "write")
             self.assertIsNotNone(rule2)
             self.assertTrue(rule2.is_deleted)
-            
+
             rule3 = await query_for_rule(session, e.adapter, "p", "carol", "data10", "read")
             self.assertIsNotNone(rule3)
             self.assertFalse(rule3.is_deleted)
@@ -275,7 +270,7 @@ class TestConfigSoftDelete(IsolatedAsyncioTestCase):
             rule1 = await query_for_rule(session, e.adapter, "p", "data2_admin", "data2", "read")
             self.assertIsNotNone(rule1)
             self.assertTrue(rule1.is_deleted)
-            
+
             rule2 = await query_for_rule(session, e.adapter, "p", "data2_admin", "data2", "write")
             self.assertIsNotNone(rule2)
             self.assertTrue(rule2.is_deleted)
@@ -309,7 +304,7 @@ class TestConfigSoftDelete(IsolatedAsyncioTestCase):
 
         # Delete a policy
         await e.delete_permission_for_user("alice", "data1", "read")
-        
+
         async with session_maker() as session:
             rule = await query_for_rule(session, e.adapter, "p", "alice", "data1", "read")
             self.assertIsNotNone(rule)
@@ -329,7 +324,7 @@ class TestConfigSoftDelete(IsolatedAsyncioTestCase):
     async def test_load_filtered_policy_ignores_soft_deleted(self):
         """Test that load_filtered_policy ignores soft-deleted rules."""
         e = await self.get_enforcer()
-        
+
         # Delete a policy
         await e.delete_permission_for_user("bob", "data2", "write")
 

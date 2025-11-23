@@ -80,9 +80,7 @@ class Adapter(AsyncAdapter):
         if db_class is None:
             db_class = CasbinRule
         else:
-            if db_class_softdelete_attribute is not None and not isinstance(
-                db_class_softdelete_attribute.type, Boolean
-            ):
+            if db_class_softdelete_attribute is not None and not isinstance(db_class_softdelete_attribute.type, Boolean):
                 msg = f"The type of db_class_softdelete_attribute needs to be {str(Boolean)!r}. "
                 msg += f"An attribute of type {str(type(db_class_softdelete_attribute.type))!r} was given."
                 raise ValueError(msg)
