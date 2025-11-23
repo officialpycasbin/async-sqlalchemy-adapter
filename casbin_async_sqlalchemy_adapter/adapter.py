@@ -288,8 +288,8 @@ class Adapter(AsyncAdapter):
         async with self._session_scope() as session:
             if self.softdelete_attribute is None:
                 stmt = delete(self._db_class).where(self._db_class.ptype == ptype)
-                rules = zip(*rules)
-                for i, rule in enumerate(rules):
+                rules_zipped = zip(*rules)
+                for i, rule in enumerate(rules_zipped):
                     stmt = stmt.where(or_(getattr(self._db_class, "v{}".format(i)) == v for v in rule))
                 await session.execute(stmt)
             else:
@@ -412,7 +412,21 @@ class Adapter(AsyncAdapter):
             stmt = self._softdelete_query(stmt)
             filtered_stmt = self.filter_query(stmt, filter)
             result = await session.execute(filtered_stmt)
-            old_rules = result.scalars().all()
+            old_rules_db = result.scalars().all()
+
+            # Convert database objects to rule lists
+            old_rules = []
+            for line in old_rules_db:
+                fields_with_None = [
+                    line.v0,
+                    line.v1,
+                    line.v2,
+                    line.v3,
+                    line.v4,
+                    line.v5,
+                ]
+                rule = [element for element in fields_with_None if element is not None]
+                old_rules.append(rule)
 
             # Delete old policies
 
