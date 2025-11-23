@@ -132,6 +132,75 @@ async with async_session() as session:
     await session.commit()
 ```
 
+## Soft Deletion Support
+
+The adapter supports soft deletion, which marks records as deleted instead of physically removing them from the database. This is useful for:
+
+- Maintaining audit trails
+- Implementing undo functionality
+- Preserving historical data
+- Debugging and compliance requirements
+
+### Basic Usage with Soft Deletion
+
+To enable soft deletion, you need to:
+
+1. Create a custom database model with a boolean `is_deleted` column
+2. Pass the soft delete attribute to the adapter
+
+```python
+import casbin_async_sqlalchemy_adapter
+import casbin
+from sqlalchemy import Column, Boolean, Integer, String
+from sqlalchemy.ext.asyncio import create_async_engine
+
+# Define a custom model with soft delete support
+class CasbinRuleSoftDelete(casbin_async_sqlalchemy_adapter.Base):
+    __tablename__ = "casbin_rule"
+
+    id = Column(Integer, primary_key=True)
+    ptype = Column(String(255))
+    v0 = Column(String(255))
+    v1 = Column(String(255))
+    v2 = Column(String(255))
+    v3 = Column(String(255))
+    v4 = Column(String(255))
+    v5 = Column(String(255))
+    
+    # Add the soft delete column
+    is_deleted = Column(Boolean, default=False, index=True, nullable=False)
+
+# Create adapter with soft delete support
+engine = create_async_engine('sqlite+aiosqlite:///test.db')
+adapter = casbin_async_sqlalchemy_adapter.Adapter(
+    engine,
+    db_class=CasbinRuleSoftDelete,
+    db_class_softdelete_attribute=CasbinRuleSoftDelete.is_deleted
+)
+
+# Create the table
+await adapter.create_table()
+
+e = casbin.AsyncEnforcer('path/to/model.conf', adapter)
+
+# When you delete a policy, it will be soft-deleted (marked as deleted)
+await e.delete_permission_for_user("alice", "data1", "read")
+
+# The record remains in the database with is_deleted=True
+# Load policy will automatically filter out soft-deleted records
+await e.load_policy()
+```
+
+### How Soft Deletion Works
+
+When soft deletion is enabled:
+
+- **Delete operations** set the `is_deleted` flag to `True` instead of removing records
+- **Load operations** automatically filter out records where `is_deleted=True`
+- **Save policy** marks removed rules as deleted while preserving the records
+- **Update operations** only affect non-deleted records
+
+This feature maintains full backward compatibility - when `db_class_softdelete_attribute` is not provided, the adapter functions with hard deletion as before.
 
 ### Getting Help
 
