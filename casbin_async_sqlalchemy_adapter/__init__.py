@@ -12,4 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .adapter import CasbinRule, Adapter, Base
+from .adapter import CasbinRule, Adapter, Base, create_casbin_rule_model
