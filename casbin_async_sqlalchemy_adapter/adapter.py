@@ -49,6 +49,61 @@ class CasbinRule(Base):
         return '<CasbinRule {}: "{}">'.format(self.id, str(self))
 
 
+def create_casbin_rule_model(base, table_name="casbin_rule"):
+    """
+    Create a CasbinRule model class using the given SQLAlchemy declarative base.
+
+    This function allows you to create a CasbinRule model that uses your application's
+    existing Base metadata, enabling integration with Alembic migrations.
+
+    Args:
+        base: The SQLAlchemy declarative base class to use for the model.
+        table_name: The name of the table to use. Defaults to "casbin_rule".
+
+    Returns:
+        A CasbinRule model class that uses the given base's metadata.
+
+    Example:
+        from sqlalchemy.orm import declarative_base
+        from casbin_async_sqlalchemy_adapter import Adapter, create_casbin_rule_model
+
+        # Use your application's existing Base
+        Base = declarative_base()
+
+        # Create CasbinRule using your Base
+        CasbinRule = create_casbin_rule_model(Base)
+
+        # Now CasbinRule will be included in Alembic auto-generated migrations
+        # when you run: alembic revision --autogenerate
+    """
+
+    class CasbinRuleModel(base):
+        __tablename__ = table_name
+        __table_args__ = {"extend_existing": True}
+
+        id = Column(Integer, primary_key=True)
+        ptype = Column(String(255))
+        v0 = Column(String(255))
+        v1 = Column(String(255))
+        v2 = Column(String(255))
+        v3 = Column(String(255))
+        v4 = Column(String(255))
+        v5 = Column(String(255))
+
+        def __str__(self):
+            arr = [self.ptype]
+            for v in (self.v0, self.v1, self.v2, self.v3, self.v4, self.v5):
+                if v is None:
+                    break
+                arr.append(v)
+            return ", ".join(arr)
+
+        def __repr__(self):
+            return '<CasbinRule {}: "{}">'.format(self.id, str(self))
+
+    return CasbinRuleModel
+
+
 class Filter:
     ptype = []
     v0 = []
