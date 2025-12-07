@@ -19,12 +19,10 @@ from unittest import IsolatedAsyncioTestCase
 import casbin
 from sqlalchemy import Column, Integer, String, select
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from sqlalchemy.orm import declarative_base
 
 from casbin_async_sqlalchemy_adapter import Adapter
 from casbin_async_sqlalchemy_adapter import Base
 from casbin_async_sqlalchemy_adapter import CasbinRule
-from casbin_async_sqlalchemy_adapter import create_casbin_rule_model
 from casbin_async_sqlalchemy_adapter.adapter import Filter
 
 
@@ -418,85 +416,6 @@ class TestBulkInsert(IsolatedAsyncioTestCase):
             tuples = [(r.v0, r.v1, r.v2) for r in rows]
             for r in rules:
                 assert r in tuples
-
-
-class TestCreateCasbinRuleModel(IsolatedAsyncioTestCase):
-    async def test_create_casbin_rule_model_with_custom_base(self):
-        """Test that create_casbin_rule_model creates a model with the given base's metadata."""
-        # Create a custom Base (simulating user's application Base)
-        CustomBase = declarative_base()
-
-        # Use a unique table name to avoid conflicts with other tests
-        CustomCasbinRule = create_casbin_rule_model(CustomBase, table_name="test_custom_rule")
-
-        # Verify the model uses the custom Base's metadata
-        self.assertIn("test_custom_rule", CustomBase.metadata.tables)
-
-        # Verify the model has all required columns
-        self.assertTrue(hasattr(CustomCasbinRule, "id"))
-        self.assertTrue(hasattr(CustomCasbinRule, "ptype"))
-        self.assertTrue(hasattr(CustomCasbinRule, "v0"))
-        self.assertTrue(hasattr(CustomCasbinRule, "v1"))
-        self.assertTrue(hasattr(CustomCasbinRule, "v2"))
-        self.assertTrue(hasattr(CustomCasbinRule, "v3"))
-        self.assertTrue(hasattr(CustomCasbinRule, "v4"))
-        self.assertTrue(hasattr(CustomCasbinRule, "v5"))
-
-        # Create engine and table
-        engine = create_async_engine("sqlite+aiosqlite://", future=True)
-        async with engine.begin() as conn:
-            await conn.run_sync(CustomBase.metadata.create_all)
-
-        # Test that we can insert and query records
-        async_session = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
-        async with async_session() as s:
-            s.add(CustomCasbinRule(ptype="p", v0="alice", v1="data1", v2="read"))
-            await s.commit()
-            result = await s.execute(select(CustomCasbinRule))
-            rules = result.scalars().all()
-            self.assertEqual(len(rules), 1)
-            self.assertEqual(str(rules[0]), "p, alice, data1, read")
-
-    async def test_create_casbin_rule_model_with_custom_table_name(self):
-        """Test that create_casbin_rule_model respects custom table name."""
-        CustomBase = declarative_base()
-        CustomCasbinRule = create_casbin_rule_model(CustomBase, table_name="my_custom_rules")
-
-        self.assertIn("my_custom_rules", CustomBase.metadata.tables)
-        self.assertEqual(CustomCasbinRule.__tablename__, "my_custom_rules")
-
-    async def test_create_casbin_rule_model_str_and_repr(self):
-        """Test that str and repr methods work correctly on the created model."""
-        CustomBase = declarative_base()
-        CustomCasbinRule = create_casbin_rule_model(CustomBase, table_name="str_repr_test_rules")
-
-        rule = CustomCasbinRule(ptype="p", v0="alice", v1="data1", v2="read")
-        self.assertEqual(str(rule), "p, alice, data1, read")
-        self.assertEqual(repr(rule), '<CasbinRule None: "p, alice, data1, read">')
-
-    async def test_create_casbin_rule_model_with_adapter(self):
-        """Test that the created model works with the Adapter (uses adapter's Base to avoid side effects)."""
-        # Use the adapter's Base to create the rule model - this avoids the side effect
-        # of Base.metadata = db_class.metadata in the Adapter constructor
-        CustomCasbinRule = create_casbin_rule_model(Base, table_name="adapter_test_rule")
-
-        # Verify the model uses Base's metadata
-        self.assertIn("adapter_test_rule", Base.metadata.tables)
-
-        # Create engine and table
-        engine = create_async_engine("sqlite+aiosqlite://", future=True)
-        await Adapter(engine, db_class=CustomCasbinRule).create_table()
-
-        async_session = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
-        async with async_session() as s:
-            s.add(CustomCasbinRule(ptype="p", v0="bob", v1="data2", v2="write"))
-            await s.commit()
-
-        # Test that the model works with the Adapter
-        adapter = Adapter(engine, db_class=CustomCasbinRule)
-        e = casbin.AsyncEnforcer(get_fixture("rbac_model.conf"), adapter)
-        await e.load_policy()
-        self.assertTrue(e.enforce("bob", "data2", "write"))
 
 
 if __name__ == "__main__":

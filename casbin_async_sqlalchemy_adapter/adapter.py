@@ -50,32 +50,7 @@ class CasbinRule(Base):
 
 
 def create_casbin_rule_model(base, table_name="casbin_rule"):
-    """
-    Create a CasbinRule model class using the given SQLAlchemy declarative base.
-
-    This function allows you to create a CasbinRule model that uses your application's
-    existing Base metadata, enabling integration with Alembic migrations.
-
-    Args:
-        base: The SQLAlchemy declarative base class to use for the model.
-        table_name: The name of the table to use. Defaults to "casbin_rule".
-
-    Returns:
-        A CasbinRule model class that uses the given base's metadata.
-
-    Example:
-        from sqlalchemy.orm import declarative_base
-        from casbin_async_sqlalchemy_adapter import Adapter, create_casbin_rule_model
-
-        # Use your application's existing Base
-        Base = declarative_base()
-
-        # Create CasbinRule using your Base
-        CasbinRule = create_casbin_rule_model(Base)
-
-        # Now CasbinRule will be included in Alembic auto-generated migrations
-        # when you run: alembic revision --autogenerate
-    """
+    """Create a CasbinRule model using the given declarative base for Alembic integration."""
 
     class CasbinRuleModel(base):
         __tablename__ = table_name
