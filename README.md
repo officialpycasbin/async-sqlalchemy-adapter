@@ -52,7 +52,7 @@ else:
     pass
 ```
 
-> Note that AsyncAdaper must be used for AynscEnforcer.
+> Note that AsyncAdapter must be used for AsyncEnforcer.
 
 ## Alembic Integration
 
