@@ -52,7 +52,42 @@ else:
     pass
 ```
 
-> Note that AsyncAdaper must be used for AynscEnforcer.
+> Note that AsyncAdapter must be used for AsyncEnforcer.
+
+## Alembic Integration
+
+For production applications, you'll want to manage database schema using Alembic migrations instead of calling `create_table()` at runtime. The adapter provides `create_casbin_rule_model()` to integrate with your existing migration workflow.
+
+```python
+# In your alembic/env.py or models file
+from casbin_async_sqlalchemy_adapter import create_casbin_rule_model
+from sqlalchemy.ext.declarative import declarative_base
+
+# Use your application's declarative base
+Base = declarative_base()
+
+# Create the CasbinRule model using your base
+CasbinRule = create_casbin_rule_model(Base)
+
+# Now Alembic can auto-generate migrations for the casbin_rule table
+# Run: alembic revision --autogenerate -m "Add casbin_rule table"
+# Then: alembic upgrade head
+```
+
+When using the adapter with Alembic-managed tables, pass your custom model:
+
+```python
+from your_app.models import CasbinRule
+import casbin_async_sqlalchemy_adapter
+import casbin
+
+adapter = casbin_async_sqlalchemy_adapter.Adapter(
+    'sqlite+aiosqlite:///test.db',
+    db_class=CasbinRule
+)
+
+e = casbin.AsyncEnforcer('path/to/model.conf', adapter)
+```
 
 ## External Session Support
 
