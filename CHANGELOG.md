@@ -1,5 +1,12 @@
 # Semantic Versioning Changelog
 
+## [1.16.1](https://github.com/officialpycasbin/async-sqlalchemy-adapter/compare/v1.16.0...v1.16.1) (2025-12-07)
+
+
+### Bug Fixes
+
+* add Alembic integration docs for create_casbin_rule_model() ([#24](https://github.com/officialpycasbin/async-sqlalchemy-adapter/issues/24)) ([06e3f37](https://github.com/officialpycasbin/async-sqlalchemy-adapter/commit/06e3f37a8aadedbe90b62cf6b78f12d02a67dff8))
+
 # [1.16.0](https://github.com/officialpycasbin/async-sqlalchemy-adapter/compare/v1.15.0...v1.16.0) (2025-12-07)
 
 
