@@ -1,5 +1,12 @@
 # Semantic Versioning Changelog
 
+# [1.16.0](https://github.com/officialpycasbin/async-sqlalchemy-adapter/compare/v1.15.0...v1.16.0) (2025-12-07)
+
+
+### Features
+
+* add create_casbin_rule_model() API for Alembic migration support ([#22](https://github.com/officialpycasbin/async-sqlalchemy-adapter/issues/22)) ([5628b21](https://github.com/officialpycasbin/async-sqlalchemy-adapter/commit/5628b21258310fe7eefa79e799550af8e527570b))
+
 # [1.15.0](https://github.com/officialpycasbin/async-sqlalchemy-adapter/compare/v1.14.0...v1.15.0) (2025-11-23)
 
 
