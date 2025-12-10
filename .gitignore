@@ -130,3 +130,7 @@ dmypy.json
 
 .idea/
 *.iml
+
+# SQLite database files
+*.db
+*.db-journal
