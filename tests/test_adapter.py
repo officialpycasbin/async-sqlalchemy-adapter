@@ -17,7 +17,7 @@ import unittest
 from unittest import IsolatedAsyncioTestCase
 
 import casbin
-from sqlalchemy import Column, Integer, String, select
+from sqlalchemy import Column, Integer, String, select, func
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 
 from casbin_async_sqlalchemy_adapter import Adapter
@@ -392,8 +392,6 @@ class TestConfig(IsolatedAsyncioTestCase):
 
     async def test_clear_policy(self):
         """Test that clear_policy() removes all records from the database."""
-        from sqlalchemy import func
-
         e = await get_enforcer()
         adapter = e.get_adapter()
         engine = adapter._engine
