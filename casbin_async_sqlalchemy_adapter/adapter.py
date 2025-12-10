@@ -268,6 +268,30 @@ class Adapter(AsyncAdapter):
 
         return True
 
+    async def clear_policy(self):
+        """Clears all policy rules from the storage (database).
+        
+        This method removes all records from the casbin_rule table.
+        If soft delete is enabled, it marks all records as deleted.
+        
+        Returns:
+            bool: True if successful, False otherwise.
+        """
+        async with self._session_scope() as session:
+            if self.softdelete_attribute is None:
+                # Hard delete all records
+                stmt = delete(self._db_class)
+                await session.execute(stmt)
+            else:
+                # Soft delete all active records
+                stmt = select(self._db_class)
+                stmt = self._softdelete_query(stmt)
+                result = await session.execute(stmt)
+                lines = result.scalars().all()
+                for line in lines:
+                    setattr(line, self.softdelete_attribute.name, True)
+        return True
+
     async def add_policy(self, sec, ptype, rule):
         """adds a policy rule to the storage."""
         await self._save_policy_line(ptype, rule)

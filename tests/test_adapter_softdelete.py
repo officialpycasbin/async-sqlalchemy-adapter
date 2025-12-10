@@ -342,3 +342,50 @@ class TestConfigSoftDelete(IsolatedAsyncioTestCase):
         self.assertFalse(e2.enforce("bob", "data2", "write"))
         # Other data2 policies should be loaded
         self.assertTrue(e2.enforce("data2_admin", "data2", "read"))
+
+    async def test_clear_policy_with_softdelete(self):
+        """Test that clear_policy() marks all records as deleted when softdelete is enabled."""
+        e = await self.get_enforcer()
+        adapter = e.get_adapter()
+        engine = adapter._engine
+
+        # Verify there are policies in the database
+        async_session = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+        async with async_session() as s:
+            # Count total records (including soft-deleted)
+            total_result = await s.execute(select(CasbinRuleSoftDelete))
+            total_count = len(total_result.scalars().all())
+            self.assertGreater(total_count, 0, "There should be policies in the database before clearing")
+
+            # Count non-deleted records
+            active_result = await s.execute(select(CasbinRuleSoftDelete).where(CasbinRuleSoftDelete.is_deleted == False))
+            active_count = len(active_result.scalars().all())
+            self.assertGreater(active_count, 0, "There should be active policies before clearing")
+
+        # Clear all policies (soft delete)
+        await adapter.clear_policy()
+
+        # Verify all active policies are now marked as deleted
+        async with async_session() as s:
+            # Total count should remain the same (soft delete)
+            total_result = await s.execute(select(CasbinRuleSoftDelete))
+            total_after = len(total_result.scalars().all())
+            self.assertEqual(total_count, total_after, "Total records should remain the same with soft delete")
+
+            # Active count should be 0
+            active_result = await s.execute(select(CasbinRuleSoftDelete).where(CasbinRuleSoftDelete.is_deleted == False))
+            active_after = len(active_result.scalars().all())
+            self.assertEqual(active_after, 0, "All policies should be marked as deleted")
+
+            # All should be marked as deleted
+            deleted_result = await s.execute(select(CasbinRuleSoftDelete).where(CasbinRuleSoftDelete.is_deleted == True))
+            deleted_after = len(deleted_result.scalars().all())
+            self.assertEqual(deleted_after, total_count, "All policies should be marked as deleted")
+
+        # Verify enforcer still works after clearing (can load empty policy)
+        await e.load_policy()
+        self.assertFalse(e.enforce("alice", "data1", "read"))
+
+        # Verify we can add policies after clearing
+        await e.add_policy("eve", "data3", "read")
+        self.assertTrue(e.enforce("eve", "data3", "read"))

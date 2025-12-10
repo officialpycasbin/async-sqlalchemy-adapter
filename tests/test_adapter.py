@@ -390,6 +390,38 @@ class TestConfig(IsolatedAsyncioTestCase):
         await e.update_filtered_policies([["bob", "data2", "read"]], 0, "bob")
         self.assertTrue(e.enforce("bob", "data2", "read"))
 
+    async def test_clear_policy(self):
+        """Test that clear_policy() removes all records from the database."""
+        from sqlalchemy import func
+
+        e = await get_enforcer()
+        adapter = e.get_adapter()
+        engine = adapter._engine
+
+        # Verify there are policies in the database
+        async_session = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+        async with async_session() as s:
+            cnt = await s.execute(select(func.count()).select_from(CasbinRule))
+            initial_count = cnt.scalar_one()
+            self.assertGreater(initial_count, 0, "There should be policies in the database before clearing")
+
+        # Clear all policies from the database
+        await adapter.clear_policy()
+
+        # Verify all policies are removed from the database
+        async with async_session() as s:
+            cnt = await s.execute(select(func.count()).select_from(CasbinRule))
+            final_count = cnt.scalar_one()
+            self.assertEqual(final_count, 0, "All policies should be removed from the database")
+
+        # Verify enforcer still works after clearing (can load empty policy)
+        await e.load_policy()
+        self.assertFalse(e.enforce("alice", "data1", "read"))
+
+        # Verify we can add policies after clearing
+        await e.add_policy("eve", "data3", "read")
+        self.assertTrue(e.enforce("eve", "data3", "read"))
+
 
 class TestBulkInsert(IsolatedAsyncioTestCase):
     async def test_add_policies_bulk_internal_session(self):
