@@ -167,6 +167,36 @@ async with async_session() as session:
     await session.commit()
 ```
 
+## Clearing All Policies
+
+The adapter provides a `clear_policy()` method to remove all policy records from the database directly:
+
+```python
+import casbin_async_sqlalchemy_adapter
+import casbin
+from sqlalchemy.ext.asyncio import create_async_engine
+
+# Setup
+engine = create_async_engine('sqlite+aiosqlite:///test.db')
+adapter = casbin_async_sqlalchemy_adapter.Adapter(engine)
+await adapter.create_table()
+
+e = casbin.AsyncEnforcer('path/to/model.conf', adapter)
+await e.load_policy()
+
+# Add some policies
+await e.add_policy("alice", "data1", "read")
+await e.add_policy("bob", "data2", "write")
+
+# Clear all policies from the database
+await adapter.clear_policy()
+
+# Reload to verify - the enforcer will have no policies
+await e.load_policy()
+```
+
+When soft deletion is enabled, `clear_policy()` marks all records as deleted instead of physically removing them.
+
 ## Soft Deletion Support
 
 The adapter supports soft deletion, which marks records as deleted instead of physically removing them from the database. This is useful for:
