@@ -1,5 +1,12 @@
 # Semantic Versioning Changelog
 
+# [1.17.0](https://github.com/officialpycasbin/async-sqlalchemy-adapter/compare/v1.16.1...v1.17.0) (2025-12-10)
+
+
+### Features
+
+* add clear_policy() method to Adapter ([#26](https://github.com/officialpycasbin/async-sqlalchemy-adapter/issues/26)) ([a989130](https://github.com/officialpycasbin/async-sqlalchemy-adapter/commit/a989130074ea21688e87cc1911eaf16fbabe9082))
+
 ## [1.16.1](https://github.com/officialpycasbin/async-sqlalchemy-adapter/compare/v1.16.0...v1.16.1) (2025-12-07)
 
 
