@@ -270,10 +270,10 @@ class Adapter(AsyncAdapter):
 
     async def clear_policy(self):
         """Clears all policy rules from the storage (database).
-        
+
         This method removes all records from the casbin_rule table.
         If soft delete is enabled, it marks all records as deleted.
-        
+
         Returns:
             bool: True if successful, False otherwise.
         """
