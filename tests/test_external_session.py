@@ -228,6 +228,143 @@ class TestExternalSession(IsolatedAsyncioTestCase):
             if os.path.exists(db_file.name):
                 os.unlink(db_file.name)
 
+    # -------------------------------------------------------------------------
+    # Helper for per-method session/commit tests
+    # -------------------------------------------------------------------------
+
+    async def _make_adapter(self):
+        """Create an in-memory SQLite engine, adapter, and session factory."""
+        engine = create_async_engine("sqlite+aiosqlite://", future=True)
+        adapter = Adapter(engine)
+        await adapter.create_table()
+        session_factory = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+        return engine, adapter, session_factory
+
+    async def _load_enforcer(self, engine):
+        """Create a fresh enforcer backed by the given engine."""
+        e = casbin.AsyncEnforcer(get_fixture("rbac_model.conf"), Adapter(engine))
+        await e.load_policy()
+        return e
+
+    async def test_per_method_session_commit(self):
+        """Test passing a session directly to adapter methods (commit path)."""
+        engine, adapter, session_factory = await self._make_adapter()
+
+        async with session_factory() as session:
+            # add_policy with external session, no auto-commit
+            await adapter.add_policy("p", "p", ["alice", "data1", "read"], session=session, commit=False)
+            await adapter.add_policy("p", "p", ["bob", "data2", "write"], session=session, commit=False)
+            await session.commit()
+
+        e = await self._load_enforcer(engine)
+        self.assertTrue(e.enforce("alice", "data1", "read"))
+        self.assertTrue(e.enforce("bob", "data2", "write"))
+
+    async def test_per_method_session_rollback(self):
+        """Test passing a session directly to adapter methods (rollback path)."""
+        engine, adapter, session_factory = await self._make_adapter()
+
+        async with session_factory() as session:
+            await adapter.add_policy("p", "p", ["alice", "data1", "read"], session=session, commit=False)
+            await session.rollback()
+
+        e = await self._load_enforcer(engine)
+        self.assertFalse(e.enforce("alice", "data1", "read"))
+
+    async def test_per_method_add_policies_session(self):
+        """Test add_policies with per-method session."""
+        engine, adapter, session_factory = await self._make_adapter()
+
+        async with session_factory() as session:
+            await adapter.add_policies("p", "p", [["alice", "data1", "read"], ["bob", "data2", "write"]], session=session, commit=False)
+            await session.commit()
+
+        e = await self._load_enforcer(engine)
+        self.assertTrue(e.enforce("alice", "data1", "read"))
+        self.assertTrue(e.enforce("bob", "data2", "write"))
+
+    async def test_per_method_remove_policy_session(self):
+        """Test remove_policy with per-method session."""
+        engine, adapter, session_factory = await self._make_adapter()
+
+        # Seed data without external session
+        await adapter.add_policy("p", "p", ["alice", "data1", "read"])
+
+        async with session_factory() as session:
+            result = await adapter.remove_policy("p", "p", ["alice", "data1", "read"], session=session, commit=False)
+            self.assertTrue(result)
+            await session.commit()
+
+        e = await self._load_enforcer(engine)
+        self.assertFalse(e.enforce("alice", "data1", "read"))
+
+    async def test_per_method_remove_filtered_policy_session(self):
+        """Test remove_filtered_policy with per-method session."""
+        engine, adapter, session_factory = await self._make_adapter()
+
+        await adapter.add_policies("p", "p", [["alice", "data1", "read"], ["alice", "data2", "read"]])
+
+        async with session_factory() as session:
+            result = await adapter.remove_filtered_policy("p", "p", 0, "alice", session=session, commit=False)
+            self.assertTrue(result)
+            await session.commit()
+
+        e = await self._load_enforcer(engine)
+        self.assertFalse(e.enforce("alice", "data1", "read"))
+        self.assertFalse(e.enforce("alice", "data2", "read"))
+
+    async def test_per_method_update_policy_session(self):
+        """Test update_policy with per-method session."""
+        engine, adapter, session_factory = await self._make_adapter()
+
+        await adapter.add_policy("p", "p", ["alice", "data1", "read"])
+
+        async with session_factory() as session:
+            await adapter.update_policy("p", "p", ["alice", "data1", "read"], ["alice", "data1", "write"], session=session, commit=False)
+            await session.commit()
+
+        e = await self._load_enforcer(engine)
+        self.assertFalse(e.enforce("alice", "data1", "read"))
+        self.assertTrue(e.enforce("alice", "data1", "write"))
+
+    async def test_per_method_update_policies_session(self):
+        """Test update_policies with per-method session."""
+        engine, adapter, session_factory = await self._make_adapter()
+
+        await adapter.add_policies("p", "p", [["alice", "data1", "read"], ["bob", "data2", "write"]])
+
+        async with session_factory() as session:
+            await adapter.update_policies(
+                "p",
+                "p",
+                [["alice", "data1", "read"], ["bob", "data2", "write"]],
+                [["alice", "data1", "write"], ["bob", "data2", "read"]],
+                session=session,
+                commit=False,
+            )
+            await session.commit()
+
+        e = await self._load_enforcer(engine)
+        self.assertTrue(e.enforce("alice", "data1", "write"))
+        self.assertTrue(e.enforce("bob", "data2", "read"))
+        self.assertFalse(e.enforce("alice", "data1", "read"))
+        self.assertFalse(e.enforce("bob", "data2", "write"))
+
+    async def test_atomic_transaction_with_rollback(self):
+        """Test that multiple adapter operations in one session are atomic."""
+        engine, adapter, session_factory = await self._make_adapter()
+
+        async with session_factory() as session:
+            await adapter.add_policy("p", "p", ["alice", "data1", "read"], session=session, commit=False)
+            await adapter.add_policy("p", "p", ["bob", "data2", "write"], session=session, commit=False)
+            # Simulate an error by rolling back instead of committing
+            await session.rollback()
+
+        # Neither policy should be persisted after rollback
+        e = await self._load_enforcer(engine)
+        self.assertFalse(e.enforce("alice", "data1", "read"))
+        self.assertFalse(e.enforce("bob", "data2", "write"))
+
 
 if __name__ == "__main__":
     unittest.main()

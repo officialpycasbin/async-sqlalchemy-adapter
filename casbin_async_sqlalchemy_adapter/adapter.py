@@ -138,9 +138,12 @@ class Adapter(AsyncAdapter):
         self._filtered = filtered
 
     @asynccontextmanager
-    async def _session_scope(self):
+    async def _session_scope(self, commit: bool = True, session: Optional[AsyncSession] = None):
         """Provide an asynchronous transactional scope around a series of operations."""
-        if self._external_session is not None:
+        if session is not None:
+            # Use the provided session without automatic commit/rollback
+            yield session
+        elif self._external_session is not None:
             # Use external session without automatic commit/rollback
             yield self._external_session
         else:
@@ -148,7 +151,8 @@ class Adapter(AsyncAdapter):
             async with self.session_local() as session:
                 try:
                     yield session
-                    await session.commit()
+                    if commit:
+                        await session.commit()
                 except Exception as e:
                     await session.rollback()
                     raise e
@@ -193,20 +197,12 @@ class Adapter(AsyncAdapter):
             stmt = stmt.where(not_(self.softdelete_attribute))
         return stmt
 
-    async def _save_policy_line(self, ptype, rule, session=None):
-        if session is not None:
-            # Use provided session
-            line = self._db_class(ptype=ptype)
-            for i, v in enumerate(rule):
-                setattr(line, "v{}".format(i), v)
-            session.add(line)
-        else:
-            # Use session scope (for backward compatibility)
-            async with self._session_scope() as session:
-                line = self._db_class(ptype=ptype)
-                for i, v in enumerate(rule):
-                    setattr(line, "v{}".format(i), v)
-                session.add(line)
+    def _save_policy_line(self, ptype, rule, session):
+        """Add a single policy line to the database within the given session."""
+        line = self._db_class(ptype=ptype)
+        for i, v in enumerate(rule):
+            setattr(line, "v{}".format(i), v)
+        session.add(line)
 
     async def save_policy(self, model):
         """saves all policy rules to the storage."""
@@ -220,7 +216,7 @@ class Adapter(AsyncAdapter):
                         continue
                     for ptype, ast in model.model[sec].items():
                         for rule in ast.policy:
-                            await self._save_policy_line(ptype, rule, session)
+                            self._save_policy_line(ptype, rule, session)
             return True
 
         # Custom strategy for softdelete since it does not make sense to recreate all of the
@@ -248,7 +244,7 @@ class Adapter(AsyncAdapter):
                         # If the rule is not present, create an entry in the database
                         result = await session.execute(filter_stmt)
                         if result.scalar_one_or_none() is None:
-                            await self._save_policy_line(ptype, rule, session=session)
+                            self._save_policy_line(ptype, rule, session=session)
 
             for line in lines_before_changes:
                 ptype = line.ptype
@@ -292,11 +288,12 @@ class Adapter(AsyncAdapter):
                     setattr(line, self.softdelete_attribute.name, True)
         return True
 
-    async def add_policy(self, sec, ptype, rule):
+    async def add_policy(self, sec, ptype, rule, session: Optional[AsyncSession] = None, commit: bool = True):
         """adds a policy rule to the storage."""
-        await self._save_policy_line(ptype, rule)
+        async with self._session_scope(commit=commit, session=session) as s:
+            self._save_policy_line(ptype, rule, s)
 
-    async def add_policies(self, sec, ptype, rules):
+    async def add_policies(self, sec, ptype, rules, session: Optional[AsyncSession] = None, commit: bool = True):
         """adds a policy rules to the storage."""
         if not rules:
             return
@@ -309,57 +306,57 @@ class Adapter(AsyncAdapter):
                 row[f"v{i}"] = v
             rows.append(row)
 
-        async with self._session_scope() as session:
+        async with self._session_scope(commit=commit, session=session) as s:
             stmt = insert(self._db_class)
-            await session.execute(stmt, rows)
+            await s.execute(stmt, rows)
 
-    async def remove_policy(self, sec, ptype, rule):
+    async def remove_policy(self, sec, ptype, rule, session: Optional[AsyncSession] = None, commit: bool = True):
         """removes a policy rule from the storage."""
-        async with self._session_scope() as session:
+        async with self._session_scope(commit=commit, session=session) as s:
             if self.softdelete_attribute is None:
                 stmt = delete(self._db_class).where(self._db_class.ptype == ptype)
                 for i, v in enumerate(rule):
                     stmt = stmt.where(getattr(self._db_class, "v{}".format(i)) == v)
-                r = await session.execute(stmt)
+                r = await s.execute(stmt)
                 return True if r.rowcount > 0 else False
             else:
                 stmt = select(self._db_class).where(self._db_class.ptype == ptype)
                 stmt = self._softdelete_query(stmt)
                 for i, v in enumerate(rule):
                     stmt = stmt.where(getattr(self._db_class, "v{}".format(i)) == v)
-                result = await session.execute(stmt)
+                result = await s.execute(stmt)
                 lines = result.scalars().all()
                 for line in lines:
                     setattr(line, self.softdelete_attribute.name, True)
                 return True if len(lines) > 0 else False
 
-    async def remove_policies(self, sec, ptype, rules):
+    async def remove_policies(self, sec, ptype, rules, session: Optional[AsyncSession] = None, commit: bool = True):
         """remove policy rules from the storage."""
         if not rules:
             return
-        async with self._session_scope() as session:
+        async with self._session_scope(commit=commit, session=session) as s:
             if self.softdelete_attribute is None:
                 stmt = delete(self._db_class).where(self._db_class.ptype == ptype)
                 rules_zipped = zip(*rules)
                 for i, rule in enumerate(rules_zipped):
                     stmt = stmt.where(or_(getattr(self._db_class, "v{}".format(i)) == v for v in rule))
-                await session.execute(stmt)
+                await s.execute(stmt)
             else:
                 stmt = select(self._db_class).where(self._db_class.ptype == ptype)
                 stmt = self._softdelete_query(stmt)
                 rules_zipped = zip(*rules)
                 for i, rule in enumerate(rules_zipped):
                     stmt = stmt.where(or_(getattr(self._db_class, "v{}".format(i)) == v for v in rule))
-                result = await session.execute(stmt)
+                result = await s.execute(stmt)
                 lines = result.scalars().all()
                 for line in lines:
                     setattr(line, self.softdelete_attribute.name, True)
 
-    async def remove_filtered_policy(self, sec, ptype, field_index, *field_values):
+    async def remove_filtered_policy(self, sec, ptype, field_index, *field_values, session: Optional[AsyncSession] = None, commit: bool = True):
         """removes policy rules that match the filter from the storage.
         This is part of the Auto-Save feature.
         """
-        async with self._session_scope() as session:
+        async with self._session_scope(commit=commit, session=session) as s:
             if not (0 <= field_index <= 5):
                 return False
             if not (1 <= field_index + len(field_values) <= 6):
@@ -371,7 +368,7 @@ class Adapter(AsyncAdapter):
                     if v != "":
                         v_value = getattr(self._db_class, "v{}".format(field_index + i))
                         stmt = stmt.where(v_value == v)
-                r = await session.execute(stmt)
+                r = await s.execute(stmt)
                 return True if r.rowcount > 0 else False
             else:
                 stmt = select(self._db_class).where(self._db_class.ptype == ptype)
@@ -380,13 +377,13 @@ class Adapter(AsyncAdapter):
                     if v != "":
                         v_value = getattr(self._db_class, "v{}".format(field_index + i))
                         stmt = stmt.where(v_value == v)
-                result = await session.execute(stmt)
+                result = await s.execute(stmt)
                 lines = result.scalars().all()
                 for line in lines:
                     setattr(line, self.softdelete_attribute.name, True)
                 return True if len(lines) > 0 else False
 
-    async def update_policy(self, sec: str, ptype: str, old_rule: List[str], new_rule: List[str]) -> None:
+    async def update_policy(self, sec: str, ptype: str, old_rule: List[str], new_rule: List[str], session: Optional[AsyncSession] = None, commit: bool = True) -> None:
         """
         Update the old_rule with the new_rule in the database (storage).
 
@@ -394,11 +391,13 @@ class Adapter(AsyncAdapter):
         :param ptype: policy type
         :param old_rule: the old rule that needs to be modified
         :param new_rule: the new rule to replace the old rule
+        :param session: optional external session to use
+        :param commit: whether to commit the transaction (only used when no session is provided)
 
         :return: None
         """
 
-        async with self._session_scope() as session:
+        async with self._session_scope(commit=commit, session=session) as s:
             stmt = select(self._db_class).where(self._db_class.ptype == ptype)
             stmt = self._softdelete_query(stmt)
 
@@ -409,7 +408,7 @@ class Adapter(AsyncAdapter):
 
             # need the length of the longest_rule to perform overwrite
             longest_rule = old_rule if len(old_rule) > len(new_rule) else new_rule
-            result = await session.execute(stmt)
+            result = await s.execute(stmt)
             old_rule_line = result.scalar_one()
 
             # overwrite the old rule with the new rule
@@ -425,6 +424,8 @@ class Adapter(AsyncAdapter):
         ptype: str,
         old_rules: List[List[str]],
         new_rules: List[List[str]],
+        session: Optional[AsyncSession] = None,
+        commit: bool = True,
     ) -> None:
         """
         Update the old_rules with the new_rules in the database (storage).
@@ -433,13 +434,16 @@ class Adapter(AsyncAdapter):
         :param ptype: policy type
         :param old_rules: the old rules that need to be modified
         :param new_rules: the new rules to replace the old rules
+        :param session: optional external session to use
+        :param commit: whether to commit the transaction (only used when no session is provided)
 
         :return: None
         """
-        for i in range(len(old_rules)):
-            await self.update_policy(sec, ptype, old_rules[i], new_rules[i])
+        async with self._session_scope(commit=commit, session=session) as s:
+            for i in range(len(old_rules)):
+                await self.update_policy(sec, ptype, old_rules[i], new_rules[i], session=s, commit=False)
 
-    async def update_filtered_policies(self, sec, ptype, new_rules: List[List[str]], field_index, *field_values) -> List[List[str]]:
+    async def update_filtered_policies(self, sec, ptype, new_rules: List[List[str]], field_index, *field_values, session: Optional[AsyncSession] = None, commit: bool = True) -> List[List[str]]:
         """update_filtered_policies updates all the policies on the basis of the filter."""
 
         filter = Filter()
@@ -452,18 +456,18 @@ class Adapter(AsyncAdapter):
             else:
                 break
 
-        return await self._update_filtered_policies(new_rules, filter)
+        return await self._update_filtered_policies(new_rules, filter, session=session, commit=commit)
 
-    async def _update_filtered_policies(self, new_rules, filter) -> List[List[str]]:
+    async def _update_filtered_policies(self, new_rules, filter, session: Optional[AsyncSession] = None, commit: bool = True) -> List[List[str]]:
         """_update_filtered_policies updates all the policies on the basis of the filter."""
 
-        async with self._session_scope() as session:
+        async with self._session_scope(commit=commit, session=session) as s:
             # Load old policies
 
             stmt = select(self._db_class).where(self._db_class.ptype == filter.ptype)
             stmt = self._softdelete_query(stmt)
             filtered_stmt = self.filter_query(stmt, filter)
-            result = await session.execute(filtered_stmt)
+            result = await s.execute(filtered_stmt)
             old_rules_db = result.scalars().all()
 
             # Convert database objects to rule lists
@@ -482,11 +486,11 @@ class Adapter(AsyncAdapter):
 
             # Delete old policies
 
-            await self.remove_policies("p", filter.ptype, old_rules)
+            await self.remove_policies("p", filter.ptype, old_rules, session=s, commit=False)
 
             # Insert new policies
 
-            await self.add_policies("p", filter.ptype, new_rules)
+            await self.add_policies("p", filter.ptype, new_rules, session=s, commit=False)
 
             # return deleted rules
 
