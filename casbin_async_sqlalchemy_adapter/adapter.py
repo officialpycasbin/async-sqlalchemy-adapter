@@ -383,7 +383,9 @@ class Adapter(AsyncAdapter):
                     setattr(line, self.softdelete_attribute.name, True)
                 return True if len(lines) > 0 else False
 
-    async def update_policy(self, sec: str, ptype: str, old_rule: List[str], new_rule: List[str], session: Optional[AsyncSession] = None, commit: bool = True) -> None:
+    async def update_policy(
+        self, sec: str, ptype: str, old_rule: List[str], new_rule: List[str], session: Optional[AsyncSession] = None, commit: bool = True
+    ) -> None:
         """
         Update the old_rule with the new_rule in the database (storage).
 
@@ -443,7 +445,9 @@ class Adapter(AsyncAdapter):
             for i in range(len(old_rules)):
                 await self.update_policy(sec, ptype, old_rules[i], new_rules[i], session=s, commit=False)
 
-    async def update_filtered_policies(self, sec, ptype, new_rules: List[List[str]], field_index, *field_values, session: Optional[AsyncSession] = None, commit: bool = True) -> List[List[str]]:
+    async def update_filtered_policies(
+        self, sec, ptype, new_rules: List[List[str]], field_index, *field_values, session: Optional[AsyncSession] = None, commit: bool = True
+    ) -> List[List[str]]:
         """update_filtered_policies updates all the policies on the basis of the filter."""
 
         filter = Filter()
