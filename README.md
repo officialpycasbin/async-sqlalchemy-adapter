@@ -89,81 +89,93 @@ adapter = casbin_async_sqlalchemy_adapter.Adapter(
 e = casbin.AsyncEnforcer('path/to/model.conf', adapter)
 ```
 
-## External Session Support
+## Atomic Transactions (Transaction Control)
 
-The adapter supports using externally managed SQLAlchemy sessions. This feature is useful for:
+The adapter lets you group multiple enforcer or adapter calls into a single atomic database transaction, so that either **all changes are committed together or none are**.
 
-- Better transaction control in complex scenarios
-- Reducing database connections and communications
-- Supporting advanced database features like two-phase commits
-- Integrating with existing database session management
+### Using `adapter.transaction()` — recommended for enforcer-level calls
 
-### Basic Usage with External Session
+The `transaction()` context manager binds a session to every adapter operation that happens inside the block.  You can obtain the adapter from an existing enforcer with `enforcer.get_adapter()`, so there is no need for a separate import or variable in most cases.
 
 ```python
-import casbin_async_sqlalchemy_adapter
 import casbin
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
+import casbin_async_sqlalchemy_adapter
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 
-# Create your own database session
 engine = create_async_engine('sqlite+aiosqlite:///test.db')
-async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
-# Create adapter with external session
-session = async_session()
-adapter = casbin_async_sqlalchemy_adapter.Adapter(
-    'sqlite+aiosqlite:///test.db',
-    db_session=session
-)
+adapter = casbin_async_sqlalchemy_adapter.Adapter(engine)
+await adapter.create_table()
 
-e = casbin.AsyncEnforcer('path/to/model.conf', adapter)
+enforcer = casbin.AsyncEnforcer('path/to/model.conf', adapter)
+await enforcer.load_policy()
 
-# Now you have full control over the session
-# The adapter will not auto-commit or auto-rollback when using external sessions
+# --- elsewhere in the application ---
+
+# Obtain the adapter directly from the enforcer — no separate import needed.
+adapter = enforcer.get_adapter()
+
+async with async_session() as session:
+    async with adapter.transaction(session=session):
+        # All enforcer calls inside this block share `session` and do NOT
+        # auto-commit — the adapter defers commit control to the caller.
+        await enforcer.add_policy("alice", "data1", "read")
+        await enforcer.add_policy("bob", "data2", "write")
+
+    # Commit or roll back the entire batch atomically.
+    await session.commit()       # persists both policies
+    # await session.rollback()   # would discard both
 ```
 
-### Transaction Control Example
+#### Atomic user-creation example
 
 ```python
-# Example: Manual transaction control
+async def create_user(session, user_data):
+    # Insert the user row – not yet committed.
+    user = User(**user_data)
+    session.add(user)
+    await session.flush()        # get user.id without committing
+
+    adapter = enforcer.get_adapter()
+    async with adapter.transaction(session=session):
+        await enforcer.add_role_for_user(str(user.id), "viewer")
+        await enforcer.add_policy(str(user.id), "resource", "read")
+
+    # One commit covers the user row AND all policy changes.
+    await session.commit()
+    # If anything raises before this point, session.rollback() leaves
+    # the database in a clean state — no orphaned policies.
+```
+
+### Per-method `session` and `commit` parameters
+
+For direct adapter calls you can pass `session` and `commit` keyword arguments individually:
+
+```python
 async with async_session() as session:
-    adapter = casbin_async_sqlalchemy_adapter.Adapter(
-        'sqlite+aiosqlite:///test.db',
-        db_session=session
-    )
-    
-    e = casbin.AsyncEnforcer('path/to/model.conf', adapter)
-    
-    # Add multiple policies in a single transaction
-    await e.add_policy("alice", "data1", "read")
-    await e.add_policy("bob", "data2", "write")
-    
-    # Commit or rollback as needed
+    await adapter.add_policy("p", "p", ["alice", "data1", "read"],
+                             session=session, commit=False)
+    await adapter.add_policies("p", "p", [["bob", "data2", "write"]],
+                               session=session, commit=False)
     await session.commit()
 ```
 
-### Batch Operations Example
+All write methods accept these parameters: `add_policy`, `add_policies`, `remove_policy`, `remove_policies`, `remove_filtered_policy`, `update_policy`, `update_policies`, `update_filtered_policies`.
+
+### Constructor-level external session (`db_session`)
+
+The original constructor-level session is still supported for scenarios where every operation should share the same long-lived session:
 
 ```python
-# Example: Efficient batch operations
 async with async_session() as session:
-    adapter = casbin_async_sqlalchemy_adapter.Adapter(
-        'sqlite+aiosqlite:///test.db',
-        db_session=session
-    )
-    
+    adapter = casbin_async_sqlalchemy_adapter.Adapter(engine, db_session=session)
     e = casbin.AsyncEnforcer('path/to/model.conf', adapter)
-    
-    # Batch add multiple policies efficiently
-    policies = [
-        ["alice", "data1", "read"],
-        ["bob", "data2", "write"],
-        ["carol", "data3", "read"]
-    ]
-    await e.add_policies(policies)
-    
-    # Commit the transaction
+    await e.load_policy()
+
+    await e.add_policy("alice", "data1", "read")
+    await e.add_policy("bob", "data2", "write")
+
     await session.commit()
 ```
 
