@@ -246,6 +246,12 @@ class TestExternalSession(IsolatedAsyncioTestCase):
         await e.load_policy()
         return e
 
+    async def _make_enforcer(self, adapter):
+        """Create a fresh enforcer using an existing adapter instance."""
+        e = casbin.AsyncEnforcer(get_fixture("rbac_model.conf"), adapter)
+        await e.load_policy()
+        return e
+
     async def test_per_method_session_commit(self):
         """Test passing a session directly to adapter methods (commit path)."""
         engine, adapter, session_factory = await self._make_adapter()
@@ -364,6 +370,98 @@ class TestExternalSession(IsolatedAsyncioTestCase):
         e = await self._load_enforcer(engine)
         self.assertFalse(e.enforce("alice", "data1", "read"))
         self.assertFalse(e.enforce("bob", "data2", "write"))
+
+    # -------------------------------------------------------------------------
+    # Tests for the transaction() context manager (enforcer-friendly API)
+    # -------------------------------------------------------------------------
+
+    async def test_transaction_cm_commit(self):
+        """transaction() lets enforcer methods share a session; commit persists changes."""
+        engine, adapter, session_factory = await self._make_adapter()
+
+        # The enforcer MUST use the same adapter instance as the transaction() context.
+        e = await self._make_enforcer(adapter)
+
+        async with session_factory() as session:
+            async with adapter.transaction(session=session):
+                await e.add_policy("alice", "data1", "read")
+                await e.add_policy("bob", "data2", "write")
+            # Changes are in the session but not committed yet
+            await session.commit()
+
+        # Verify persistence
+        e2 = await self._load_enforcer(engine)
+        self.assertTrue(e2.enforce("alice", "data1", "read"))
+        self.assertTrue(e2.enforce("bob", "data2", "write"))
+
+    async def test_transaction_cm_rollback(self):
+        """transaction() lets enforcer methods share a session; rollback discards changes."""
+        engine, adapter, session_factory = await self._make_adapter()
+
+        # The enforcer MUST use the same adapter instance as the transaction() context.
+        e = await self._make_enforcer(adapter)
+
+        async with session_factory() as session:
+            async with adapter.transaction(session=session):
+                await e.add_policy("alice", "data1", "read")
+                await e.add_policy("bob", "data2", "write")
+            await session.rollback()
+
+        # After rollback neither policy should exist
+        e2 = await self._load_enforcer(engine)
+        self.assertFalse(e2.enforce("alice", "data1", "read"))
+        self.assertFalse(e2.enforce("bob", "data2", "write"))
+
+    async def test_transaction_cm_mixed_operations(self):
+        """transaction() works with add, remove, and update enforcer calls."""
+        engine, adapter, session_factory = await self._make_adapter()
+
+        # Seed some data first
+        await adapter.add_policy("p", "p", ["alice", "data1", "read"])
+        await adapter.add_policy("p", "p", ["bob", "data2", "write"])
+
+        # The enforcer MUST use the same adapter instance as the transaction() context.
+        e = await self._make_enforcer(adapter)
+
+        async with session_factory() as session:
+            async with adapter.transaction(session=session):
+                await e.remove_policy("alice", "data1", "read")
+                await e.add_policy("charlie", "data3", "read")
+            await session.commit()
+
+        e2 = await self._load_enforcer(engine)
+        self.assertFalse(e2.enforce("alice", "data1", "read"))
+        self.assertTrue(e2.enforce("bob", "data2", "write"))
+        self.assertTrue(e2.enforce("charlie", "data3", "read"))
+
+    async def test_transaction_cm_does_not_affect_other_tasks(self):
+        """transaction() ContextVar is isolated to the current asyncio task."""
+        import asyncio
+
+        engine, adapter, session_factory = await self._make_adapter()
+
+        e = await self._load_enforcer(engine)
+
+        results = {}
+
+        async def task_with_transaction():
+            async with session_factory() as session:
+                async with adapter.transaction(session=session):
+                    # Peek at the tx session from inside the task
+                    from casbin_async_sqlalchemy_adapter.adapter import _UNSET
+
+                    results["inside"] = adapter._tx_session_var.get() is not _UNSET
+                await session.rollback()
+
+        async def task_without_transaction():
+            from casbin_async_sqlalchemy_adapter.adapter import _UNSET
+
+            results["outside"] = adapter._tx_session_var.get() is _UNSET
+
+        await asyncio.gather(task_with_transaction(), task_without_transaction())
+
+        self.assertTrue(results["inside"])
+        self.assertTrue(results["outside"])
 
 
 if __name__ == "__main__":

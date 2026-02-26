@@ -12,7 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from contextlib import asynccontextmanager
+from contextvars import ContextVar
 from typing import List, Optional
+
+# Sentinel used to distinguish "not inside a transaction() context" from an explicit session=None.
+_UNSET = object()
 
 from casbin import persist
 from casbin.persist.adapters.asyncio import AsyncAdapter
@@ -137,25 +141,76 @@ class Adapter(AsyncAdapter):
 
         self._filtered = filtered
 
+        # Per-task ContextVars for the transaction() context manager.
+        # These are instance-level to avoid cross-adapter interference.
+        self._tx_session_var: ContextVar = ContextVar(f"_tx_session_{id(self)}", default=_UNSET)
+        self._tx_commit_var: ContextVar[bool] = ContextVar(f"_tx_commit_{id(self)}", default=True)
+
+    @asynccontextmanager
+    async def transaction(self, session: Optional[AsyncSession] = None, commit: bool = True):
+        """Bind a session to all adapter/enforcer operations within this block.
+
+        This enables using high-level enforcer methods while controlling the
+        surrounding transaction externally, without accessing the adapter directly
+        for each individual call::
+
+            async with adapter.transaction(session=my_session):
+                await enforcer.add_policy(...)
+                await enforcer.add_policies(...)
+            await my_session.commit()  # or await my_session.rollback()
+
+        When *session* is ``None`` the ``commit`` parameter controls whether
+        internally-created sessions are auto-committed (mirrors the per-method
+        ``commit`` flag but applied to every call inside the block).
+        """
+        token_s = self._tx_session_var.set(session)
+        token_c = self._tx_commit_var.set(commit)
+        try:
+            yield
+        finally:
+            self._tx_session_var.reset(token_s)
+            self._tx_commit_var.reset(token_c)
+
     @asynccontextmanager
     async def _session_scope(self, commit: bool = True, session: Optional[AsyncSession] = None):
         """Provide an asynchronous transactional scope around a series of operations."""
         if session is not None:
-            # Use the provided session without automatic commit/rollback
+            # Explicit session passed by the caller (e.g. internal method chaining): use as-is.
             yield session
-        elif self._external_session is not None:
-            # Use external session without automatic commit/rollback
+            return
+
+        tx_val = self._tx_session_var.get()
+        if tx_val is not _UNSET:
+            # Inside a transaction() context manager.
+            if tx_val is not None:
+                # A real session was provided to transaction(): yield it without auto-commit.
+                yield tx_val
+            else:
+                # transaction(session=None): create an internal session governed by tx_commit.
+                async with self.session_local() as s:
+                    try:
+                        yield s
+                        if self._tx_commit_var.get():
+                            await s.commit()
+                    except Exception as e:
+                        await s.rollback()
+                        raise e
+            return
+
+        if self._external_session is not None:
+            # Constructor-level external session: yield without auto-commit.
             yield self._external_session
-        else:
-            # Use internal session with automatic commit/rollback
-            async with self.session_local() as session:
-                try:
-                    yield session
-                    if commit:
-                        await session.commit()
-                except Exception as e:
-                    await session.rollback()
-                    raise e
+            return
+
+        # Default: create a short-lived internal session with auto-commit controlled by `commit`.
+        async with self.session_local() as s:
+            try:
+                yield s
+                if commit:
+                    await s.commit()
+            except Exception as e:
+                await s.rollback()
+                raise e
 
     async def create_table(self):
         """Creates default casbin rule table."""
