@@ -161,7 +161,7 @@ class Adapter(AsyncAdapter):
     async def load_policy(self, model):
         """loads all policy rules from the storage."""
         async with self._session_scope() as session:
-            stmt = select(self._db_class)
+            stmt = select(self._db_class).execution_options(populate_existing=True)
             stmt = self._softdelete_query(stmt)
             lines = await session.execute(stmt)
             for line in lines.scalars():
@@ -173,7 +173,7 @@ class Adapter(AsyncAdapter):
     async def load_filtered_policy(self, model, filter) -> None:
         """loads all policy rules from the storage."""
         async with self._session_scope() as session:
-            stmt = select(self._db_class)
+            stmt = select(self._db_class).execution_options(populate_existing=True)
             stmt = self._softdelete_query(stmt)
             stmt = self.filter_query(stmt, filter)
             result = await session.execute(stmt)

@@ -229,5 +229,47 @@ class TestExternalSession(IsolatedAsyncioTestCase):
                 os.unlink(db_file.name)
 
 
+    async def test_load_policy_returns_fresh_data_with_external_session(self):
+        """Test that load_policy always returns fresh data even when using a reused external session.
+
+        This is a regression test for the multi-worker stale-data issue: when the
+        same external session is reused, populate_existing=True ensures that objects
+        already present in the session's identity map are refreshed from the database
+        rather than served from the ORM cache.
+        """
+        engine = create_async_engine("sqlite+aiosqlite://", future=True)
+        async_session_factory = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+
+        # Set up table and seed a single rule via the adapter
+        async with async_session_factory() as setup_session:
+            adapter = Adapter(engine, db_session=setup_session)
+            await adapter.create_table()
+            setup_session.add(CasbinRule(ptype="p", v0="alice", v1="data1", v2="read"))
+            await setup_session.commit()
+
+        # Create a long-lived external session (simulates a persistent worker session)
+        async with async_session_factory() as external_session:
+            adapter = Adapter(engine, db_session=external_session)
+            e = casbin.AsyncEnforcer(get_fixture("rbac_model.conf"), adapter)
+
+            # First load — populates the identity map
+            await e.load_policy()
+            self.assertTrue(e.enforce("alice", "data1", "read"))
+            self.assertFalse(e.enforce("bob", "data2", "write"))
+
+            # Simulate another worker (or a direct DB write) adding a new rule
+            # using a completely separate session, then committing it.
+            async with async_session_factory() as other_session:
+                other_session.add(CasbinRule(ptype="p", v0="bob", v1="data2", v2="write"))
+                await other_session.commit()
+
+            # The external session must see the freshly committed row on reload.
+            # Without populate_existing=True the identity map could return stale data.
+            await external_session.commit()  # close the current read transaction
+            await e.load_policy()
+            self.assertTrue(e.enforce("alice", "data1", "read"))
+            self.assertTrue(e.enforce("bob", "data2", "write"))
+
+
 if __name__ == "__main__":
     unittest.main()
