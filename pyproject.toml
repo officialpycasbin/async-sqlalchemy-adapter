@@ -1,6 +1,8 @@
 [project]
 name = "casbin_async_sqlalchemy_adapter"
-version = "1.17.0"
+# Placeholder only. The real version comes from the release tag: the release
+# workflow stamps it in when it builds the source package and the distributions.
+version = "0.0.0"
 authors = [
     {name = "Casbin", email = "admin@casbin.org"}
 ]

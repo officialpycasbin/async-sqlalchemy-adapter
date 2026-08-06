@@ -1,0 +1,122 @@
+name: release
+
+# Releases are cut manually by pushing a git tag:
+#   * v1.4.0-rc1 -> GitHub *pre-release* only (the candidate used for the Apache vote)
+#   * v1.4.0     -> GitHub release + publish to PyPI (after the vote has passed)
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+env:
+  # Base name of the Apache source release artifact.
+  # Drop "incubating-" from ARTIFACT_SUFFIX once the project graduates.
+  PRODUCT_NAME: casbin-python-async-sqlalchemy-adapter
+  ARTIFACT_SUFFIX: incubating-src
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Parse tag
+        id: meta
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          version="${tag#v}"
+          if [[ "$version" =~ ^([0-9]+\.[0-9]+\.[0-9]+)-rc([0-9]+)$ ]]; then
+            base="${BASH_REMATCH[1]}"
+            prerelease=true
+          elif [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            base="$version"
+            prerelease=false
+          else
+            echo "::error::Tag '$tag' is not supported. Use v<X.Y.Z> or v<X.Y.Z>-rc<N>, e.g. v1.4.0 or v1.4.0-rc1."
+            exit 1
+          fi
+
+          # The artifact is always named after the base version, so the tarball voted
+          # on as an RC is the very same tarball published for the final release.
+          {
+            echo "tag=$tag"
+            echo "base=$base"
+            echo "prerelease=$prerelease"
+            echo "artifact=apache-${PRODUCT_NAME}-${base}-${ARTIFACT_SUFFIX}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build source release
+        id: src
+        run: |
+          set -euo pipefail
+          name="${{ steps.meta.outputs.artifact }}"
+          base="${{ steps.meta.outputs.base }}"
+
+          # Plain source export from the tag: no VCS metadata, no binaries.
+          mkdir -p "srcdir/${name}"
+          git archive --format=tar "${GITHUB_REF_NAME}" | tar -x -C "srcdir/${name}"
+
+          # pyproject.toml carries a placeholder version; the tag is the source of truth.
+          sed -i -E "0,/^version = \".*\"/s//version = \"${base}\"/" "srcdir/${name}/pyproject.toml"
+          stamped="$(sed -nE '0,/^version = "(.*)"/s//\1/p' "srcdir/${name}/pyproject.toml")"
+          if [ "$stamped" != "$base" ]; then
+            echo "::error::Failed to stamp version '${base}' into pyproject.toml (got '${stamped}')."
+            exit 1
+          fi
+
+          for required in LICENSE NOTICE DISCLAIMER; do
+            if [ ! -f "srcdir/${name}/${required}" ]; then
+              echo "::error::${required} is missing from the source release."
+              exit 1
+            fi
+          done
+
+          # Deterministic tarball: same commit + same version => same bytes.
+          epoch="$(git log -1 --format=%ct "${GITHUB_REF_NAME}")"
+          tar --sort=name --mtime="@${epoch}" --owner=0 --group=0 --numeric-owner \
+            -cf "${name}.tar" -C srcdir "${name}"
+          gzip -n "${name}.tar"
+          sha512sum "${name}.tar.gz" > "${name}.tar.gz.sha512"
+
+          echo "tarball=${name}.tar.gz" >> "$GITHUB_OUTPUT"
+          echo "srcdir=srcdir/${name}" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          args=(--title "${{ steps.meta.outputs.tag }}" --generate-notes)
+          if [ "${{ steps.meta.outputs.prerelease }}" = "true" ]; then
+            args+=(--prerelease)
+          fi
+          gh release create "${{ steps.meta.outputs.tag }}" "${args[@]}" \
+            "${{ steps.src.outputs.tarball }}" \
+            "${{ steps.src.outputs.tarball }}.sha512"
+
+      - name: Set up Python
+        if: steps.meta.outputs.prerelease == 'false'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Build distributions
+        if: steps.meta.outputs.prerelease == 'false'
+        run: |
+          python -m pip install --upgrade build
+          # Built from the source release, so PyPI ships exactly what was voted on.
+          python -m build --outdir dist "${{ steps.src.outputs.srcdir }}"
+
+      - name: Publish to PyPI
+        if: steps.meta.outputs.prerelease == 'false'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_TOKEN }}
