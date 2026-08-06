@@ -143,6 +143,37 @@ async with async_session() as session:
     await session.commit()
 ```
 
+### Binding a Session per Transaction: `use_session()`
+
+Passing `db_session` to the constructor binds the session for the whole life of the
+adapter, so it forces you to build a new adapter (and a new enforcer, and reload the
+policy) for every transaction. When the enforcer is a long-lived singleton — the usual
+setup in a FastAPI/Starlette app — use `adapter.use_session()` instead. Inside the
+block every write the adapter performs joins your transaction, and the adapter neither
+commits nor rolls back, so policy changes live or die together with your own changes:
+
+```python
+# adapter and enforcer are created once at startup and reused
+async def create_user(db_session, ...):
+    async with db_session.begin():
+        user = User(...)
+        db_session.add(user)
+        await db_session.flush()  # user.id is available, nothing is committed yet
+
+        async with adapter.use_session(db_session):
+            await e.add_role_for_user(str(user.id), "admin")
+            await e.add_policies([[str(user.id), "data1", "read"]])
+
+        # If anything below raises, the user *and* the policies are rolled back
+        await notify(user)
+```
+
+The binding is stored in a `contextvars.ContextVar`, so concurrent requests sharing the
+same adapter each keep their own session; outside the block the adapter goes back to
+opening and committing its own sessions. Note that the enforcer's in-memory policy is
+updated as usual — if the transaction is rolled back, call `await e.load_policy()` to
+resynchronise it with the database.
+
 ### Batch Operations Example
 
 ```python
